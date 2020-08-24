@@ -13,7 +13,7 @@ services:
     volumes:
       - ./python_script:/fastapi
       - ./update:/update
-    command: /bin/sh -c  "/fastapi/install_module.sh && while :; do sleep 10; done"
+    command: /bin/sh -c  "/fastapi/install_module.sh && cd /fastapi && uvicorn main:app --reload --host 0.0.0.0"
   
   mongodb:
     image: mongo
