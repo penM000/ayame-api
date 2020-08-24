@@ -3,7 +3,11 @@ import motor.motor_asyncio
 import datetime
 import json
 import aiofiles
+import asyncio
+
 from pydantic import BaseModel
+#アップデートパスワード
+update_password="hello world"
 
 #データベースインスタンス作成
 client = motor.motor_asyncio.AsyncIOMotorClient('mongodb://mongodb:27017')
@@ -24,6 +28,24 @@ class request_data(BaseModel):
     date: str
 class request_date(BaseModel):
     fullname: str
+class updatepass(BaseModel):
+    password: str
+
+async def run(cmd):
+    proc = await asyncio.create_subprocess_shell(
+        cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+        )
+
+    stdout, stderr = await proc.communicate()
+
+    print(f'[{cmd!r} exited with {proc.returncode}]')
+    if stdout:
+        print(f'[stdout]\n{stdout.decode()}')
+    if stderr:
+        print(f'[stderr]\n{stderr.decode()}')
+
 
 
 @app.get("/status")
@@ -34,8 +56,14 @@ async def get_status():
 
 
 
-@app.get("/update")
-async def update():
+
+@app.post("/update")
+async def update(update:updatepass):
+    if update.password==update_password:
+        pass
+    else:
+        return "progress"
+
     global update_status
     if update_status=="NO":
         pass
@@ -44,13 +72,24 @@ async def update():
 
     update_status="progress"
 
+
     dt_now=datetime.datetime.now(JST)
     json_contents=""
+   
     try:
-        async with aiofiles.open('/update/data.json', mode='r') as f:
+
+        update_status="get data"
+        await run("python3 /update/being24/get_all.py")
+    except:
+        update_status="NO"
+        return "being24 error"
+   
+    try:
+        async with aiofiles.open('/update/being24/data/data.json', mode='r') as f:
             json_contents = await f.read()
         json_load = json.loads(str(json_contents))
     except:
+        update_status="get data"
         return "file error"
 
     try:
@@ -63,8 +102,8 @@ async def update():
             #データ構造テンプレ
             newdocument =   {
                             "fullname": idata["fullname"],
-                            #str(dt_now.date()):{
-                            str("2020-08-25"):{
+                            str(dt_now.date()):{
+                            #str("2020-08-25"):{
                                 "title": idata["title"],
                                 "tags": idata["tags"],
                                 "comments": idata["comments"],
