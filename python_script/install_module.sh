@@ -1,3 +1,3 @@
 #!/bin/sh
-apk add --no-cache build-base mariadb-connector-c-dev
-pip3 install fastapi uvicorn motor aiofiles
+apk add --no-cache build-base mariadb-connector-c-dev libxml2-dev libxslt-dev 
+pip3 install fastapi uvicorn motor aiofiles asyncio bs4 lxml requests
