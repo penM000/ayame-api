@@ -1,65 +1,74 @@
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
-from fastapi.middleware.gzip import GZipMiddleware
-from pydantic import BaseModel
-import motor.motor_asyncio
+import asyncio
 import datetime
 import json
-import aiofiles
-import asyncio
-import random, string
+import random
+import string
 
-#アップデートパスワード
-update_password="hello world"
+import aiofiles
+import motor.motor_asyncio
+from fastapi import FastAPI
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
+
+# アップデートパスワード
+update_password = "hello world"
+
 
 def randomname(n):
-   return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
 
 
 try:
     with open("/fastapi/password.txt") as f:
         update_password = f.read()
-except:
-    update_password=str(randomname(10))
-    f = open("/fastapi/password.txt",'w')
+except BaseException:
+    update_password = str(randomname(10))
+    f = open("/fastapi/password.txt", 'w')
     f.write(update_password)
     f.close()
-    
 
 
-
-
-#データベースインスタンス作成
-client = motor.motor_asyncio.AsyncIOMotorClient('mongodb://mongodb:27017/?compressors=snappy')
+# データベースインスタンス作成
+client = motor.motor_asyncio.AsyncIOMotorClient(
+    'mongodb://mongodb:27017/?compressors=snappy')
 db = client['test_database']
 collection = db["test_collection"]
 
-#fastapiインスタンス作成
+# fastapiインスタンス作成
 app = FastAPI()
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
-#タイムゾーン設定
+# タイムゾーン設定
 JST = datetime.timezone(datetime.timedelta(hours=+9), 'JST')
 
-#システム状態変数
-update_status="NO"
+# システム状態変数
+update_status = "NO"
 
 # リクエストbodyを定義
+
+
 class request_data(BaseModel):
     fullname: str
     date: str
+
+
 class request_date(BaseModel):
     fullname: str
+
+
 class updatepass(BaseModel):
     password: str
 
-#非同期コマンド実行
+# 非同期コマンド実行
+
+
 async def run(cmd):
     proc = await asyncio.create_subprocess_shell(
         cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE
-        )
+    )
     stdout, stderr = await proc.communicate()
     print(f'[{cmd!r} exited with {proc.returncode}]')
     if stdout:
@@ -68,130 +77,134 @@ async def run(cmd):
         print(f'[stderr]\n{stderr.decode()}')
 
 
-#状態取得
+# 状態取得
 @app.get("/status")
 async def get_status():
-    dt_now=datetime.datetime.now(JST)
-    status={"update_status":update_status,"date":dt_now.date(),"fulldate":dt_now}
+    dt_now = datetime.datetime.now(JST)
+    status = {
+        "update_status": update_status,
+        "date": dt_now.date(),
+        "fulldate": dt_now}
     return status
-#データベースアップデート
+# データベースアップデート
+
+
 @app.post("/update")
-async def update(update:updatepass):
-    #状態変数
+async def update(update: updatepass):
+    # 状態変数
     global update_status
-    #パスワード認証(手抜き)
-    if update.password==update_password:
+    # パスワード認証(手抜き)
+    if update.password == update_password:
         pass
     else:
         return "progress"
-    #アップデート処理中なら終了
-    if update_status=="NO":
-        update_status="progress"
+    # アップデート処理中なら終了
+    if update_status == "NO":
+        update_status = "progress"
     else:
         return update_status
-    #時刻インスタンス生成
-    dt_now=datetime.datetime.now(JST)
-    #クローラ非同期マルチプロセス実行
-    
+    # 時刻インスタンス生成
+    dt_now = datetime.datetime.now(JST)
+    # クローラ非同期マルチプロセス実行
+
     try:
-        update_status="get data"
+        update_status = "get data"
         await run("python3 /update/being24/get_all.py")
-    except:
-        update_status="NO"
+    except BaseException:
+        update_status = "NO"
         return "being24 error"
-    
-    #クロールデータのメモリロード
+
+    # クロールデータのメモリロード
     try:
-        json_contents=""
+        json_contents = ""
         async with aiofiles.open('/update/being24/data/data.json', mode='r') as f:
             json_contents = await f.read()
         json_load = json.loads(str(json_contents))
-    except:
-        update_status="NO"
+    except BaseException:
+        update_status = "NO"
         return "file load error"
-    #データベース更新
+    # データベース更新
     try:
-    #データベースインデックス作成
+        # データベースインデックス作成
         await collection.create_index("fullname")
         await collection.create_index("date")
-        #進捗状況用変数
-        total=len(json_load)
-        now_count=0
+        # 進捗状況用変数
+        total = len(json_load)
+        now_count = 0
         for idata in json_load:
-            now_count+=1
-            #進捗状況更新
-            update_status=str(now_count) + "/" + str(total) + " : " + str( round( (now_count/total)*100 ,2 )) + "%"
-            document = await collection.find_one({"fullname": idata["fullname"],"date":str(dt_now.date())})
-            #データ構造の自動生成
-            newdocument={
-                "fullname": idata["fullname"],
-                "date":str( dt_now.date() ),
-                "data":{key:idata[key] for key in idata.keys() if key !="fullname"}
-            }
-            #新規登録データ
+            now_count += 1
+            # 進捗状況更新
+            update_status = str(now_count) + "/" + str(total) + \
+                " : " + str(round((now_count / total) * 100, 2)) + "%"
+            document = await collection.find_one({"fullname": idata["fullname"], "date": str(dt_now.date())})
+            # データ構造の自動生成
+            newdocument = {
+                "fullname": idata["fullname"], "date": str(
+                    dt_now.date()), "data": {
+                    key: idata[key] for key in idata.keys() if key != "fullname"}}
+            # 新規登録データ
             if document is None:
                 result = await collection.insert_one(newdocument)
-            #更新データ(同じ日付の更新)
+            # 更新データ(同じ日付の更新)
             else:
-                #データベースID取得
+                # データベースID取得
                 _id = document['_id']
-                #データベース更新
+                # データベース更新
                 result = await collection.replace_one({'_id': _id}, newdocument)
-        update_status="NO"
-        await db.command({ "compact": "test_collection"})
+        update_status = "NO"
+        await db.command({"compact": "test_collection"})
         return "ok"
-    except:
-        update_status="NO"
+    except BaseException:
+        update_status = "NO"
         return "update error"
 
 
-#日時取得
+# 日時取得
 @app.post("/get_fullname_date")
-async def get_fullname_date(get_fullname_date:request_date):
-    cursor =  collection.find({'fullname': get_fullname_date.fullname},{"_id":0,"date":1}).sort("date",-1)
-    result=[doc["date"]  async for doc in cursor ]
+async def get_fullname_date(get_fullname_date: request_date):
+    cursor = collection.find({'fullname': get_fullname_date.fullname}, {
+                             "_id": 0, "date": 1}).sort("date", -1)
+    result = [doc["date"] async for doc in cursor]
     return result
 
 
-
-#データ取得      
+# データ取得
 @app.post("/get_fullname_data")
-async def get_fullname_data(get_fullname_data:request_data):
-    document =  await collection.find_one(
+async def get_fullname_data(get_fullname_data: request_data):
+    document = await collection.find_one(
         {
             'fullname': get_fullname_data.fullname,
-            "date":get_fullname_data.date
+            "date": get_fullname_data.date
         },
         {
-            "_id":0,
-            "fullname":1,
-            "date":1,
-            "data":1
+            "_id": 0,
+            "fullname": 1,
+            "date": 1,
+            "data": 1
         }
     )
     return document
+
 
 @app.get("/get_all_fullname")
 async def get_all_fullname():
     pipeline = [
 
         {
-            "$group": {"_id":"$fullname"}
+            "$group": {"_id": "$fullname"}
         },
         {
-            "$sort": { "_id": 1 }
+            "$sort": {"_id": 1}
         }
     ]
     cursor = collection.aggregate(pipeline)
-    result=[doc["_id"] async for doc in cursor]
+    result = [doc["_id"] async for doc in cursor]
     return result
-    
 
 
-
-@app.get("/",response_class=HTMLResponse)
+@app.get("/", response_class=HTMLResponse)
 async def read_root():
-    html="""
+    html = """
     <!doctype html>
     <html lang="ja">
     <head>
@@ -202,10 +215,10 @@ async def read_root():
         <!-- Bootstrap CSS -->
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
 
-        <title>being24 api</title>
+        <title>ayame api</title>
     </head>
     <body>
-        <h1>Welcome to being24 api</h1>
+        <h1>Welcome to ayame api</h1>
         <a href=/docs target="_blank" rel="noopener noreferrer">document page here</a>
         <h2>How to use</h2>
         <ol>
@@ -223,6 +236,6 @@ async def read_root():
         <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
     </body>
     </html>
-    
+
     """
     return html
