@@ -23,8 +23,12 @@ services:
       -  'MONGODB_PASS=password'
     volumes:
       -  ./mongodb:/data/db
-      -  ./mongod.conf:etc/mongo/mongod.conf
-    command: mongo --config /etc/mongo/mongod.conf
+
+    command: 
+      - --wiredTigerCollectionBlockCompressor
+      - zstd
+
+
   mongo-express:
     ports:
       - 6004:8081
