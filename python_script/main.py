@@ -7,10 +7,27 @@ import datetime
 import json
 import aiofiles
 import asyncio
-
+import random, string
 
 #アップデートパスワード
 update_password="hello world"
+
+def randomname(n):
+   return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
+
+
+try:
+    with open("/fastapi/password.txt") as f:
+        update_password = f.read()
+except:
+    update_password=str(randomname(10))
+    f = open("/fastapi/password.txt",'w')
+    f.write(update_password)
+    f.close()
+    
+
+
+
 
 #データベースインスタンス作成
 client = motor.motor_asyncio.AsyncIOMotorClient('mongodb://mongodb:27017/?compressors=snappy')
@@ -195,6 +212,7 @@ async def read_root():
             <li>You can get the fullname using <a href=/get_all_fullname target="_blank" rel="noopener noreferrer">/get_all_fullname</a>.</li>
             <li>Post the fullname with <a href=get_fullname_date target="_blank" rel="noopener noreferrer">/get_fullname_date</a> to get the available dates.</li>
             <li>Post the fullname and date to <a href=get_fullname_data target="_blank" rel="noopener noreferrer">/get_fullname_data</a> to get the metadata.</li>
+
         </ol>
 
 
