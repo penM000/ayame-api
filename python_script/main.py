@@ -1,23 +1,27 @@
 from fastapi import FastAPI
+from fastapi.middleware.gzip import GZipMiddleware
+from pydantic import BaseModel
 import motor.motor_asyncio
 import datetime
 import json
 import aiofiles
 import asyncio
 
-from pydantic import BaseModel
+
 #アップデートパスワード
 update_password="hello world"
 
 #データベースインスタンス作成
-client = motor.motor_asyncio.AsyncIOMotorClient('mongodb://mongodb:27017')
+client = motor.motor_asyncio.AsyncIOMotorClient('mongodb://mongodb:27017/?compressors=snappy')
 db = client['test_database']
 collection = db["test_collection"]
+
+#fastapiインスタンス作成
 app = FastAPI()
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 #タイムゾーン設定
 JST = datetime.timezone(datetime.timedelta(hours=+9), 'JST')
-
 
 #システム状態変数
 update_status="NO"
@@ -31,15 +35,14 @@ class request_date(BaseModel):
 class updatepass(BaseModel):
     password: str
 
+#非同期コマンド実行
 async def run(cmd):
     proc = await asyncio.create_subprocess_shell(
         cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE
         )
-
     stdout, stderr = await proc.communicate()
-
     print(f'[{cmd!r} exited with {proc.returncode}]')
     if stdout:
         print(f'[stdout]\n{stdout.decode()}')
@@ -47,122 +50,127 @@ async def run(cmd):
         print(f'[stderr]\n{stderr.decode()}')
 
 
-
+#状態取得
 @app.get("/status")
 async def get_status():
     dt_now=datetime.datetime.now(JST)
     status={"update_status":update_status,"date":dt_now.date(),"fulldate":dt_now}
     return status
-
-
-
-
+#データベースアップデート
 @app.post("/update")
 async def update(update:updatepass):
+    #状態変数
+    global update_status
+    #パスワード認証(手抜き)
     if update.password==update_password:
         pass
     else:
         return "progress"
-
-    global update_status
+    #アップデート処理中なら終了
     if update_status=="NO":
-        pass
+        update_status="progress"
     else:
         return update_status
-
-    update_status="progress"
-
-
+    #時刻インスタンス生成
     dt_now=datetime.datetime.now(JST)
-    json_contents=""
-   
+    #クローラ非同期マルチプロセス実行
+    
     try:
-
         update_status="get data"
         await run("python3 /update/being24/get_all.py")
     except:
         update_status="NO"
         return "being24 error"
-   
+    
+    #クロールデータのメモリロード
     try:
+        json_contents=""
         async with aiofiles.open('/update/being24/data/data.json', mode='r') as f:
             json_contents = await f.read()
         json_load = json.loads(str(json_contents))
     except:
-        update_status="get data"
-        return "file error"
-
+        update_status="NO"
+        return "file load error"
+    #データベース更新
     try:
+    #データベースインデックス作成
+        await collection.create_index("fullname")
+        await collection.create_index("date")
+        #進捗状況用変数
         total=len(json_load)
         now_count=0
         for idata in json_load:
             now_count+=1
+            #進捗状況更新
             update_status=str(now_count) + "/" + str(total) + " : " + str( round( (now_count/total)*100 ,2 )) + "%"
-            document = await collection.find_one({'fullname': idata["fullname"]})
-            #データ構造テンプレ
-            newdocument =   {
-                            "fullname": idata["fullname"],
-                            str(dt_now.date()):{
-                            #str("2020-08-25"):{
-                                "title": idata["title"],
-                                "tags": idata["tags"],
-                                "comments": idata["comments"],
-                                "rating": idata["rating"],
-                                "rating_votes": idata["rating_votes"],
-                                "created_at": idata["created_at"],
-                                "created_by": idata["created_by"],
-                                "updated_at": idata["updated_at"],
-                                "updated_by": idata["updated_by"],
-                                "commented_at": idata["commented_at"],
-                                "commented_by": idata["commented_by"]   
-                            }   
-                        }
+            document = await collection.find_one({"fullname": idata["fullname"],"date":str(dt_now.date())})
+            #データ構造の自動生成
+            newdocument={
+                "fullname": idata["fullname"],
+                "date":str( dt_now.date() ),
+                "data":{key:idata[key] for key in idata.keys() if key !="fullname"}
+            }
             #新規登録データ
             if document is None:
                 result = await collection.insert_one(newdocument)
-            #更新データ
+            #更新データ(同じ日付の更新)
             else:
                 #データベースID取得
                 _id = document['_id']
-                #データベースの情報と更新データの結合
-                for datekey in document.keys():
-                    if str(datekey) != "_id" and str(datekey) != "fullname" :  
-                        newdocument.update({str(datekey):document[datekey]})
-                        pass
                 #データベース更新
                 result = await collection.replace_one({'_id': _id}, newdocument)
         update_status="NO"
+        await db.command({ "compact": "test_collection"})
         return "ok"
     except:
         update_status="NO"
         return "update error"
 
+
 #日時取得
 @app.post("/get_fullname_date")
 async def get_fullname_date(get_fullname_date:request_date):
-    document = await collection.find_one({'fullname': get_fullname_date.fullname})
-    if document is None:
-        return "not found"
-    else:
-        dates=[]
-        for datekey in document.keys():
-            if str(datekey) != "_id" and str(datekey) != "fullname" : 
-                dates.append(datekey) 
-        return dates
+    cursor =  collection.find({'fullname': get_fullname_date.fullname},{"_id":0,"date":1}).sort("date",-1)
+    result=[doc["date"]  async for doc in cursor ]
+    return result
+
+
+
 #データ取得      
 @app.post("/get_fullname_data")
 async def get_fullname_data(get_fullname_data:request_data):
-    document = await collection.find_one({'fullname': get_fullname_data.fullname})
-    if document is None:
-        return "not found"
-    else:
-        dates=[]
-        for datekey in document.keys():
-            if str(datekey) == get_fullname_data.date: 
-                return document[datekey]
-        return "not found"
+    document =  await collection.find_one(
+        {
+            'fullname': get_fullname_data.fullname,
+            "date":get_fullname_data.date
+        },
+        {
+            "_id":0,
+            "fullname":1,
+            "date":1,
+            "data":1
+        }
+    )
+    return document
+
+@app.get("/get_all_fullname")
+async def get_all_fullname():
+    pipeline = [
+
+        {
+            "$group": {"_id":"$fullname"}
+        },
+        {
+            "$sort": { "_id": 1 }
+        }
+    ]
+    cursor = collection.aggregate(pipeline)
+    result=[doc["_id"] async for doc in cursor]
+    return result
+    
+
 
 
 @app.get("/")
-def read_root():
-    return {"Hello": "World"}
+async def read_root():
+    return "ok"
