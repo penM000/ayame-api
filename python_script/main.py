@@ -197,10 +197,28 @@ async def get_all_fullname():
             "$sort": {"_id": 1}
         }
     ]
-    cursor = collection.aggregate(pipeline)
+    cursor = collection.aggregate(pipeline,allowDiskUse=True)
     result = [doc["_id"] async for doc in cursor]
     return result
-
+##一番重い処理の最適化のためのexplain確認用
+"""
+@app.get("/test_get_all_fullname")
+async def test_get_all_fullname():
+    pipeline = [
+        {
+            "$group": {"_id": "$fullname"}
+        },
+        {
+            "$sort": {"_id": 1}
+        }
+        
+    ]
+    result = await db.command('explain', {'aggregate': 'test_collection', 'pipeline': pipeline, 'cursor': {}}, verbosity='executionStats')
+    #result = await db.command('aggregate', 'test_collection', pipeline=pipeline, explain=True)
+    #cursor = collection.aggregate(pipeline,allowDiskUse=True)
+    #result = [doc["_id"] async for doc in cursor]
+    return result
+"""
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
