@@ -37,7 +37,7 @@ collection = db["test_collection"]
 
 # fastapiインスタンス作成
 app = FastAPI()
-app.add_middleware(GZipMiddleware, minimum_size=500)
+#app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # タイムゾーン設定
 JST = datetime.timezone(datetime.timedelta(hours=+9), 'JST')
@@ -45,20 +45,8 @@ JST = datetime.timezone(datetime.timedelta(hours=+9), 'JST')
 # システム状態変数
 update_status = "NO"
 
-# リクエストbodyを定義
+all_fullname=[]
 
-
-class request_data(BaseModel):
-    fullname: str
-    date: str
-
-
-class request_date(BaseModel):
-    fullname: str
-
-
-class updatepass(BaseModel):
-    password: str
 
 # 非同期コマンド実行
 
@@ -89,12 +77,16 @@ async def get_status():
 # データベースアップデート
 
 
-@app.post("/update")
-async def update(update: updatepass):
+
+
+
+@app.get("/update")
+async def update(password: str = ""):
     # 状態変数
     global update_status
+    global all_fullname
     # パスワード認証(手抜き)
-    if update.password == update_password:
+    if password == update_password:
         pass
     else:
         return "progress"
@@ -153,28 +145,37 @@ async def update(update: updatepass):
                 result = await collection.replace_one({'_id': _id}, newdocument)
         update_status = "NO"
         await db.command({"compact": "test_collection"})
+        pipeline = [
+            {
+                "$group": {"_id": "$fullname"}
+            },
+            {
+                "$sort": {"_id": 1}
+            }
+        ]
+        cursor = collection.aggregate(pipeline,allowDiskUse=True)
+        all_fullname = [doc["_id"] async for doc in cursor]
         return "ok"
     except BaseException:
         update_status = "NO"
         return "update error"
 
-
 # 日時取得
-@app.post("/get_fullname_date")
-async def get_fullname_date(get_fullname_date: request_date):
-    cursor = collection.find({'fullname': get_fullname_date.fullname}, {
+@app.get("/get_fullname_date")
+async def get_fullname_date(fullname: str = "scp-173"):
+    cursor = collection.find({'fullname': fullname}, {
                              "_id": 0, "date": 1}).sort("date", -1)
     result = [doc["date"] async for doc in cursor]
     return result
 
 
 # データ取得
-@app.post("/get_fullname_data")
-async def get_fullname_data(get_fullname_data: request_data):
+@app.get("/get_fullname_data")
+async def get_fullname_data(fullname: str = "scp-173",date: str = "2020-xx-xx"):
     document = await collection.find_one(
         {
-            'fullname': get_fullname_data.fullname,
-            "date": get_fullname_data.date
+            'fullname': fullname,
+            "date": date
         },
         {
             "_id": 0,
@@ -187,18 +188,29 @@ async def get_fullname_data(get_fullname_data: request_data):
 
 
 @app.get("/get_all_fullname")
-async def get_all_fullname():
-    pipeline = [
-
-        {
-            "$group": {"_id": "$fullname"}
-        },
-        {
-            "$sort": {"_id": 1}
-        }
-    ]
-    cursor = collection.aggregate(pipeline,allowDiskUse=True)
-    result = [doc["_id"] async for doc in cursor]
+async def get_all_fullname(_range: int = 10, _page: int = 1):
+    global all_fullname
+    if all_fullname:
+        pass
+    else:
+        pipeline = [
+            {
+                "$group": {"_id": "$fullname"}
+            },
+            {
+                "$sort": {"_id": 1}
+            }
+        ]
+        cursor = collection.aggregate(pipeline,allowDiskUse=True)
+        all_fullname = [doc["_id"] async for doc in cursor]
+    _min=_range*( _page - 1 )
+    _max=_range*( _page  )
+    if _min<0:
+        _min=0
+    if _max>len(all_fullname):
+        _max=len(all_fullname)
+    result=all_fullname[ _min : _max ]
+    
     return result
 ##一番重い処理の最適化のためのexplain確認用
 """
