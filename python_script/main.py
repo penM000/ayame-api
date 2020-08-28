@@ -71,7 +71,7 @@ async def update_last_update_date():
 async def get_last_update_date():
     collection = db["last_update_date"]
     result = await collection.find_one({"last_update": "last_update"},{"_id":0,"date":1})
-    return result
+    return result["date"]
 # 非同期コマンド実行
 async def run(cmd):
     proc = await asyncio.create_subprocess_shell(
@@ -94,6 +94,7 @@ async def get_status():
     status = {
         "update_status": update_status,
         "date": dt_now.date(),
+        "total_fullname":len(all_fullname),
         "last_update": await get_last_update_date()}
     return status
 # データベースアップデート
