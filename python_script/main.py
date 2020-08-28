@@ -45,13 +45,26 @@ JST = datetime.timezone(datetime.timedelta(hours=+9), 'JST')
 
 # システム状態変数
 update_status = "NO"
-
+last_update=""
 all_fullname=[]
 
 
+# データベース最終更新日更新
+async def update_last_update_date():
+    collection = db["last_update_date"]
+    dt_now = datetime.datetime.now(JST)
+    newdocument = {
+                "last_update": "last_update",
+                "date": str(dt_now)
+                }
+    await collection.insert_one(newdocument)
+    return 0
+# データベース最終更新日取得
+async def get_last_update_date():
+    collection = db["last_update_date"]
+    result = await collection.find_one({"last_update": "last_update"},{"_id":0,"date":1})
+    return result
 # 非同期コマンド実行
-
-
 async def run(cmd):
     proc = await asyncio.create_subprocess_shell(
         cmd,
@@ -73,7 +86,7 @@ async def get_status():
     status = {
         "update_status": update_status,
         "date": dt_now.date(),
-        "fulldate": dt_now}
+        "last_update": await get_last_update_date()}
     return status
 # データベースアップデート
 
@@ -157,6 +170,7 @@ async def update(password: str = ""):
         ]
         cursor = collection.aggregate(pipeline,allowDiskUse=True)
         all_fullname = [doc["_id"] async for doc in cursor]
+        await update_last_update_date()
         return "ok"
     except BaseException:
         update_status = "NO"
