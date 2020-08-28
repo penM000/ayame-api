@@ -6,6 +6,7 @@ import string
 
 import aiofiles
 import motor.motor_asyncio
+from pymongo import IndexModel, ASCENDING, DESCENDING
 from fastapi import FastAPI
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse
@@ -120,6 +121,7 @@ async def update(password: str = ""):
         # データベースインデックス作成
         await collection.create_index("fullname")
         await collection.create_index("date")
+        await collection.create_index([ ("date", -1)])
         # 進捗状況用変数
         total = len(json_load)
         now_count = 0
@@ -212,8 +214,36 @@ async def get_all_fullname(_range: int = 10, _page: int = 1):
     result=all_fullname[ _min : _max ]
     
     return result
-##一番重い処理の最適化のためのexplain確認用
+# explain確認用
 """
+# 日時取得
+@app.get("/test_get_fullname_date")
+async def get_fullname_date(fullname: str = "scp-173"):
+    
+    await collection.create_index([ ("date", -1)])    
+    cursor = collection.find({'fullname': fullname}, {
+                             "_id": 0, "date": 1}).sort("date", -1).explain()
+    #result = [doc["date"] async for doc in cursor]
+    return await cursor
+
+
+# データ取得
+@app.get("/test_get_fullname_data")
+async def get_fullname_data(fullname: str = "scp-173",date: str = "2020-xx-xx"):
+
+    cursor = collection.find({
+            'fullname': fullname,
+            "date": date
+        },
+        {
+            "_id": 0,
+            "fullname": 1,
+            "date": 1,
+            "data": 1
+        }
+    ).explain()
+    return await cursor
+
 @app.get("/test_get_all_fullname")
 async def test_get_all_fullname():
     pipeline = [
