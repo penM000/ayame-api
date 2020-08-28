@@ -8,13 +8,12 @@ import aiofiles
 import motor.motor_asyncio
 from pymongo import IndexModel, ASCENDING, DESCENDING
 from fastapi import FastAPI
-from fastapi.middleware.gzip import GZipMiddleware
+#from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 # アップデートパスワード
 update_password = "hello world"
-
 
 def randomname(n):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
@@ -38,7 +37,6 @@ collection = db["test_collection"]
 
 # fastapiインスタンス作成
 app = FastAPI()
-#app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # タイムゾーン設定
 JST = datetime.timezone(datetime.timedelta(hours=+9), 'JST')
@@ -67,11 +65,13 @@ async def update_last_update_date():
         # データベース更新
         result = await collection.replace_one({'_id': _id}, newdocument)
     return 0
+
 # データベース最終更新日取得
 async def get_last_update_date():
     collection = db["last_update_date"]
     result = await collection.find_one({"last_update": "last_update"},{"_id":0,"date":1})
     return result["date"]
+
 # 非同期コマンド実行
 async def run(cmd):
     proc = await asyncio.create_subprocess_shell(
@@ -86,20 +86,38 @@ async def run(cmd):
     if stderr:
         print(f'[stderr]\n{stderr.decode()}')
 
+#dbインデックス作成
+async def make_index():
+    await collection.create_index("fullname")
+    await collection.create_index("date")
+    await collection.create_index([ ("date", -1)])
+
+async def get_all_fullname_from_db():
+    pipeline = [
+            {
+                "$group": {"_id": "$fullname"}
+            },
+            {
+                "$sort": {"_id": 1}
+            }
+        ]
+    cursor = collection.aggregate(pipeline,allowDiskUse=True)
+    return [doc["_id"] async for doc in cursor]
+
 
 # 状態取得
 @app.get("/status")
 async def get_status():
+    global all_fullname
     dt_now = datetime.datetime.now(JST)
+    if len(all_fullname)==0:
+        all_fullname = await get_all_fullname_from_db()
     status = {
         "update_status": update_status,
         "date": dt_now.date(),
         "total_fullname":len(all_fullname),
         "last_update": await get_last_update_date()}
     return status
-# データベースアップデート
-
-
 
 
 
@@ -121,7 +139,6 @@ async def update(password: str = ""):
     # 時刻インスタンス生成
     dt_now = datetime.datetime.now(JST)
     # クローラ非同期マルチプロセス実行
-
     try:
         update_status = "get data"
         await run("python3 /update/being24/get_all.py")
@@ -141,9 +158,7 @@ async def update(password: str = ""):
     # データベース更新
     try:
         # データベースインデックス作成
-        await collection.create_index("fullname")
-        await collection.create_index("date")
-        await collection.create_index([ ("date", -1)])
+        await make_index()
         # 進捗状況用変数
         total = len(json_load)
         now_count = 0
@@ -168,17 +183,11 @@ async def update(password: str = ""):
                 # データベース更新
                 result = await collection.replace_one({'_id': _id}, newdocument)
         update_status = "NO"
+        # データベース最適化
         await db.command({"compact": "test_collection"})
-        pipeline = [
-            {
-                "$group": {"_id": "$fullname"}
-            },
-            {
-                "$sort": {"_id": 1}
-            }
-        ]
-        cursor = collection.aggregate(pipeline,allowDiskUse=True)
-        all_fullname = [doc["_id"] async for doc in cursor]
+        # fullname一覧更新
+        all_fullname = await get_all_fullname_from_db()
+        # データベース更新日更新
         await update_last_update_date()
         return "ok"
     except BaseException:
@@ -218,16 +227,7 @@ async def get_all_fullname(_range: int = 10, _page: int = 1):
     if all_fullname:
         pass
     else:
-        pipeline = [
-            {
-                "$group": {"_id": "$fullname"}
-            },
-            {
-                "$sort": {"_id": 1}
-            }
-        ]
-        cursor = collection.aggregate(pipeline,allowDiskUse=True)
-        all_fullname = [doc["_id"] async for doc in cursor]
+        all_fullname = await get_all_fullname_from_db()
     _min = abs( _range ) * ( abs( _page ) - 1 )
     _max = abs( _range ) * ( abs( _page ) )
     if _min<0:
