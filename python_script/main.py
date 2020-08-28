@@ -91,6 +91,7 @@ async def make_index():
     await collection.create_index("fullname")
     await collection.create_index("date")
     await collection.create_index([ ("date", -1)])
+    await collection.create_index([ ("tags", "text")])
 
 async def get_all_fullname_from_db():
     pipeline = [
@@ -139,13 +140,14 @@ async def update(password: str = ""):
     # 時刻インスタンス生成
     dt_now = datetime.datetime.now(JST)
     # クローラ非同期マルチプロセス実行
+    """
     try:
         update_status = "get data"
         await run("python3 /update/being24/get_all.py")
     except BaseException:
         update_status = "NO"
         return "being24 error"
-
+    """
     # クロールデータのメモリロード
     try:
         json_contents = ""
@@ -170,9 +172,11 @@ async def update(password: str = ""):
             document = await collection.find_one({"fullname": idata["fullname"], "date": str(dt_now.date())})
             # データ構造の自動生成
             newdocument = {
-                "fullname": idata["fullname"], "date": str(
-                    dt_now.date()), "data": {
-                    key: idata[key] for key in idata.keys() if key != "fullname"}}
+                "fullname":     idata["fullname"], 
+                "date":         str( dt_now.date() ), 
+                "tags":         idata["tags"].split(" ") ,
+                "data":         {key: idata[key] for key in idata.keys() if ( key != "fullname" ) and ( key != "tags" ) } 
+            }
             # 新規登録データ
             if document is None:
                 result = await collection.insert_one(newdocument)
@@ -193,6 +197,20 @@ async def update(password: str = ""):
     except BaseException:
         update_status = "NO"
         return "update error"
+# タグ検索
+@app.post("/get_fullname_from_tag")
+async def get_fullname_from_tag(tags: list = [] ):  
+    if len(tags)==0:
+        return []
+    if tags[0]==None:
+        return []
+    cursor = collection.find(
+                            {"$text" : {"$search" :   " ".join(["\""+i+"\"" for i in tags ]) } }, 
+                            {"_id": 0, "fullname": 1 ,"date" : 1}
+                            ).sort("fullname")
+    result =  [doc["fullname"] async for doc in cursor]
+    
+    return result
 
 # 日時取得
 @app.get("/get_fullname_date")
@@ -208,13 +226,14 @@ async def get_fullname_date(fullname: str = "scp-173"):
 async def get_fullname_data(fullname: str = "scp-173",date: str = "2020-xx-xx"):
     document = await collection.find_one(
         {
-            'fullname': fullname,
+            "fullname": fullname,
             "date": date
         },
         {
-            "_id": 0,
-            "fullname": 1,
-            "date": 1,
+            "_id": 0 ,
+            "fullname": 1 ,
+            "tags": 1 ,
+            "date": 1 ,
             "data": 1
         }
     )
