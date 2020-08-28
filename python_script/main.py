@@ -203,8 +203,8 @@ async def get_all_fullname(_range: int = 10, _page: int = 1):
         ]
         cursor = collection.aggregate(pipeline,allowDiskUse=True)
         all_fullname = [doc["_id"] async for doc in cursor]
-    _min=_range*( _page - 1 )
-    _max=_range*( _page  )
+    _min = abs( _range ) * ( abs( _page ) - 1 )
+    _max = abs( _range ) * ( abs( _page ) )
     if _min<0:
         _min=0
     if _max>len(all_fullname):
