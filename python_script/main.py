@@ -53,11 +53,19 @@ all_fullname=[]
 async def update_last_update_date():
     collection = db["last_update_date"]
     dt_now = datetime.datetime.now(JST)
+    document = await collection.find_one({"last_update": "last_update"})
     newdocument = {
                 "last_update": "last_update",
                 "date": str(dt_now)
                 }
-    await collection.insert_one(newdocument)
+    if document is None:
+        result = await collection.insert_one(newdocument)
+    # 更新データ(同じ日付の更新)
+    else:
+        # データベースID取得
+        _id = document['_id']
+        # データベース更新
+        result = await collection.replace_one({'_id': _id}, newdocument)
     return 0
 # データベース最終更新日取得
 async def get_last_update_date():
