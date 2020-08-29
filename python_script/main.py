@@ -9,6 +9,7 @@ import motor.motor_asyncio
 from pymongo import IndexModel, ASCENDING, DESCENDING
 from fastapi import FastAPI
 #from fastapi.middleware.gzip import GZipMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
@@ -37,6 +38,7 @@ collection = db["test_collection"]
 
 # fastapiインスタンス作成
 app = FastAPI()
+app.add_middleware(ProxyHeadersMiddleware,trusted_hosts="*")
 
 # タイムゾーン設定
 JST = datetime.timezone(datetime.timedelta(hours=+9), 'JST')
@@ -140,14 +142,14 @@ async def update(password: str = ""):
     # 時刻インスタンス生成
     dt_now = datetime.datetime.now(JST)
     # クローラ非同期マルチプロセス実行
-    """
+    
     try:
         update_status = "get data"
         await run("python3 /update/being24/get_all.py")
     except BaseException:
         update_status = "NO"
         return "being24 error"
-    """
+    
     # クロールデータのメモリロード
     try:
         json_contents = ""
@@ -205,7 +207,7 @@ async def get_fullname_from_tag(tags: list = [] ):
     if tags[0]==None:
         return []
     cursor = collection.find(
-                            {"$text" : {"$search" :   " ".join(["\""+i+"\"" for i in tags ]) } }, 
+                            {"$text" : {"$search" :   " ".join(["\""+str(i)+"\"" for i in tags ]) } }, 
                             {"_id": 0, "fullname": 1 ,"date" : 1}
                             ).sort("fullname")
     result =  [doc["fullname"] async for doc in cursor]
@@ -258,6 +260,20 @@ async def get_all_fullname(_range: int = 10, _page: int = 1):
     return result
 # explain確認用
 """
+@app.post("/test_get_fullname_from_tag")
+async def get_fullname_from_tag(tags: list = [] ):  
+    if len(tags)==0:
+        return []
+    if tags[0]==None:
+        return []
+    cursor = collection.find(
+                            {"$text" : {"$search" :   " ".join(["\""+i+"\"" for i in tags ]) } }, 
+                            {"_id": 0, "fullname": 1 ,"date" : 1}
+                            ).sort("fullname").explain()
+    return await cursor
+    result =  [doc["fullname"] async for doc in cursor]
+    
+
 # 日時取得
 @app.get("/test_get_fullname_date")
 async def get_fullname_date(fullname: str = "scp-173"):
