@@ -55,7 +55,7 @@ JST = datetime.timezone(datetime.timedelta(hours=+9), 'JST')
 update_status = "NO"
 last_update=""
 all_fullname=[]
-
+all_id=[]
 
 # 非同期コマンド実行
 async def run(cmd,cwd):
@@ -74,11 +74,13 @@ async def run(cmd,cwd):
 # db関連
 ## dbインデックス作成
 async def make_index():
+    await data_collection.create_index("id")
     await data_collection.create_index("fullname")
     await data_collection.create_index("date")
     await data_collection.create_index([ ("date", -1)])
     #await data_collection.create_index([ ("tags", "text")])
     #await data_collection.create_index([ ("tags", 1)])
+    await search_tag_collection.create_index("id")
     await search_tag_collection.create_index("fullname")
     await search_tag_collection.create_index([ ("tags", 1)])
     await search_tag_collection.create_index([ ("tags", "text")])
@@ -97,25 +99,54 @@ async def get_all_fullname_from_db():
     return [doc["_id"] async for doc in cursor]
 
 ## fullnameで登録されている日付を取得
-async def get_fullname_date_from_db(fullname):
+async def get_date_from_fullname_db(fullname):
     cursor = data_collection.find({'fullname': fullname}, {
                              "_id": 0, "date": 1}).sort("date", -1)
     result = [doc["date"] async for doc in cursor]
     return result
 
 ## fullnameと日付で全情報を取得
-async def get_fullname_data_from_db(fullname,date):
+async def get_data_from_fullname_and_date_db(fullname,date):
     document = await data_collection.find_one(
         {
             "fullname": fullname,
             "date": date
         },
         {
-            "_id": 0 ,
-            "fullname": 1 ,
-            "tags": 1 ,
-            "date": 1 ,
-            "data": 1
+            "_id": 0 
+        }
+    )
+    return document
+
+## idの取得
+async def get_all_id_from_db():
+    pipeline = [
+            {
+                "$group": {"_id": "$id"}
+            },
+            {
+                "$sort": {"_id": 1}
+            }
+        ]
+    cursor = data_collection.aggregate(pipeline,allowDiskUse=True)
+    return [ doc["_id"] async for doc in cursor if doc["_id"] != None]
+
+## idで登録されている日付を取得
+async def get_date_from_id_db(_id):
+    cursor = data_collection.find({'id': _id}, {
+                             "_id": 0, "date": 1}).sort("date", -1)
+    result = [doc["date"] async for doc in cursor]
+    return result
+
+## idと日付で全情報を取得
+async def get_data_from_id_and_date_db(_id,date):
+    document = await data_collection.find_one(
+        {
+            "id": _id,
+            "date": date
+        },
+        {
+            "_id": 0 
         }
     )
     return document
@@ -188,6 +219,7 @@ async def compact_db():
 @app.get("/status")
 async def get_status():
     global all_fullname
+    global all_id
     dt_now = datetime.datetime.now(JST)
     if len(all_fullname)==0:
         all_fullname = await get_all_fullname_from_db()
@@ -254,21 +286,13 @@ async def update(password: str = ""):
         now_count += 1
         update_status = str(now_count) + "/" + str(total) + \
             " : " + str(round((now_count / total) * 100, 2)) + "%"
-        """
-        # 登録されている(昨日以降で)最新のドキュメントを取得
-        old_newdocument = None
-        fullname_dates = await get_fullname_date_from_db(idata["fullname"])
-        for date in fullname_dates:
-            if date != str( dt_now.date() ):
-                old_newdocument = await get_fullname_data_from_db(idata["fullname"],date)
-                break
-        """
         # データ構造の自動生成
         newdocument = {
-            "fullname":     idata["fullname"], 
-            "date":         str( dt_now.date() ), 
-            "tags":         idata["tags"].split(" ") ,
-            "data":         {key: idata[key] for key in idata.keys() if ( key != "fullname" ) and ( key != "tags" ) } 
+            "id"        :   idata["id"], 
+            "fullname"  :   idata["fullname"], 
+            "date"      :   str( dt_now.date() ), 
+            "tags"      :   idata["tags"].split(" ") ,
+            "data"      :   {key: idata[key] for key in idata.keys() if ( key != "fullname" ) and ( key != "tags" ) and ( key != "id" )} 
         }
 
         
@@ -285,6 +309,7 @@ async def update(password: str = ""):
 
     # fullname一覧更新
     all_fullname = await get_all_fullname_from_db()
+    all_id = await get_all_id_from_db()
 
     # データベース更新日更新
     await update_last_update_date()
@@ -293,6 +318,8 @@ async def update(password: str = ""):
     #except BaseException:
     #    update_status = "NO"
     #    return "update error"
+
+# fullname
 # タグ検索
 @app.post("/get_fullname_from_latest_tag_fuzzy_search")
 async def get_fullname_from_latest_tag(tags: list = [] ):  
@@ -309,7 +336,7 @@ async def get_fullname_from_latest_tag(tags: list = [] ):
             "fullname": 1 
         }
     ).sort("fullname")
-    result =  [doc["fullname"] async for doc in cursor]    
+    result =  [ doc["fullname"] async for doc in cursor if "fullname" in doc]    
     return result
 
 # タグ検索
@@ -329,13 +356,13 @@ async def test_get_fullname_from_latest_tag(tags: list = [] ):
             "date" : 1
         }
     ).sort("fullname")
-    result =  [doc["fullname"] async for doc in cursor]    
+    result =  [ doc["fullname"] async for doc in cursor if "fullname" in doc]    
     return result
 
 # 日時取得
 @app.get("/get_dates_from_fullname")
 async def get_dates_from_fullname(fullname: str = "scp-173"):
-    return await get_fullname_date_from_db(fullname)
+    return await get_date_from_fullname_db(fullname)
 
 # 最新データ取得
 @app.get("/get_latest_data_from_fullname")
@@ -343,10 +370,11 @@ async def get_latest_data_from_fullname(fullname: str = "scp-173"):
     return  await search_tag_collection.find_one({"fullname": fullname},{"_id":0})
 
 
+
 # データ取得
 @app.get("/get_data_from_fullname_and_date")
 async def get_data_from_fullname_and_date(fullname: str = "scp-173",date: str = "2020-xx-xx"):
-    return await get_fullname_data_from_db(fullname,date)
+    return await get_data_from_fullname_and_date_db( fullname , date)
 
 
 @app.get("/get_all_fullname")
@@ -365,67 +393,81 @@ async def get_all_fullname(_range: int = 10, _page: int = 1):
     result=all_fullname[ _min : _max ]
     
     return result
-# explain確認用
-"""
-@app.post("/test_get_fullname_from_tag")
-async def get_fullname_from_tag(tags: list = [] ):  
+
+# id 
+
+# タグ検索
+@app.post("/get_id_from_latest_tag_fuzzy_search")
+async def get_id_from_latest_tag_fuzzy_search(tags: list = [] ):  
     if len(tags)==0:
         return []
     if tags[0]==None:
         return []
-    cursor = collection.find(
-                            {"$text" : {"$search" :   " ".join(["\""+i+"\"" for i in tags ]) } }, 
-                            {"_id": 0, "fullname": 1 ,"date" : 1}
-                            ).sort("fullname").explain()
-    return await cursor
-    result =  [doc["fullname"] async for doc in cursor]
-    
+    cursor = search_tag_collection.find(
+        {
+            "$text" : {"$search" :   " ".join(["\""+str(i)+"\"" for i in tags ]) }    
+        }, 
+        {
+            "_id": 0, 
+            "id": 1 
+        }
+    ).sort("id")
+    result =  [doc["id"] async for doc in cursor if "id" in doc]    
+    return result
+
+# タグ検索
+@app.post("/get_id_from_latest_tag_perfect_matching")
+async def get_id_from_latest_tag_perfect_matching(tags: list = [] ):  
+    if len(tags)==0:
+        return []
+    if tags[0]==None:
+        return []
+    cursor = search_tag_collection.find(
+        {
+            "tags":{ "$all": tags} 
+        }, 
+        {
+            "_id": 0, 
+            "id": 1 ,
+        }
+    ).sort("id")
+    result =  [doc["id"] async for doc in cursor if "id" in doc]    
+    return result
 
 # 日時取得
-@app.get("/test_get_fullname_date")
-async def get_fullname_date(fullname: str = "scp-173"):
-    
-    await collection.create_index([ ("date", -1)])    
-    cursor = collection.find({'fullname': fullname}, {
-                             "_id": 0, "date": 1}).sort("date", -1).explain()
-    #result = [doc["date"] async for doc in cursor]
-    return await cursor
+@app.get("/get_dates_from_id")
+async def get_dates_from_id(_id: str = "19439882" ):
+    return await get_date_from_id_db(_id)
+
+
+# 最新データ取得
+@app.get("/get_latest_data_from_id")
+async def get_latest_data_from_id(_id: str = "19439882"):
+    return  await search_tag_collection.find_one({"id": _id},{"_id":0})
 
 
 # データ取得
-@app.get("/test_get_fullname_data")
-async def get_fullname_data(fullname: str = "scp-173",date: str = "2020-xx-xx"):
+@app.get("/get_data_from_id_and_date")
+async def get_data_from_id_and_date(_id: str = "19439882",date: str = "2020-xx-xx"):
+    return await get_data_from_id_and_date_db(_id,date)
 
-    cursor = collection.find({
-            'fullname': fullname,
-            "date": date
-        },
-        {
-            "_id": 0,
-            "fullname": 1,
-            "date": 1,
-            "data": 1
-        }
-    ).explain()
-    return await cursor
 
-@app.get("/test_get_all_fullname")
-async def test_get_all_fullname():
-    pipeline = [
-        {
-            "$group": {"_id": "$fullname"}
-        },
-        {
-            "$sort": {"_id": 1}
-        }
-        
-    ]
-    result = await db.command('explain', {'aggregate': 'test_collection', 'pipeline': pipeline, 'cursor': {}}, verbosity='executionStats')
-    #result = await db.command('aggregate', 'test_collection', pipeline=pipeline, explain=True)
-    #cursor = collection.aggregate(pipeline,allowDiskUse=True)
-    #result = [doc["_id"] async for doc in cursor]
+@app.get("/get_all_id")
+async def get_all_id(_range: int = 10, _page: int = 1):
+    global all_id
+    if all_id:
+        pass
+    else:
+        all_id = await get_all_id_from_db()
+    _min = abs( _range ) * ( abs( _page ) - 1 )
+    _max = abs( _range ) * ( abs( _page ) )
+    if _min<0:
+        _min=0
+    if _max>len(all_id):
+        _max=len(all_id)
+    result=all_id[ _min : _max ]
     return result
-"""
+
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
