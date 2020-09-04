@@ -42,8 +42,30 @@ data_collection= db["test_collection"]
 search_tag_collection = db["tag_search"]
 update_date_collection = db["last_update_date"]
 
+# docsの説明
+tags_metadata = [
+    {
+        "name": "update",
+        "description": "データベース更新時に使用するもので、一般ユーザーは使用できません",
+    },
+    {
+        "name": "id api",
+        "description": "pageidを用いるapi",
+        
+    },
+    {
+        "name": "fullname api",
+        "description": "fullnameを用いるapi",
+    }
+]
 # fastapiインスタンス作成
-app = FastAPI()
+app = FastAPI( 
+    title="ayame api",
+    description="This is a very fancy project, with auto docs for the API and everything",
+    version="1.0.0",
+    openapi_tags=tags_metadata
+)
+
 ## プロキシヘッダー読み取り
 app.add_middleware(ProxyHeadersMiddleware,trusted_hosts="*")
 ## 
@@ -232,7 +254,7 @@ async def get_status():
     return status
 
 # データベース更新
-@app.get("/update")
+@app.get("/update",tags=["update"])
 async def update(password: str = ""):
     # 状態変数
     global update_status
@@ -321,8 +343,14 @@ async def update(password: str = ""):
 
 # fullname
 # タグ検索
-@app.post("/get_fullname_from_latest_tag_fuzzy_search")
+@app.post("/get_fullname_from_latest_tag_fuzzy_search",tags=["fullname api"])
 async def get_fullname_from_latest_tag(tags: list = [] ):  
+    """
+    tagからあいまい検索を行います。少なくとも1つは完全なtagが必要です。\n
+    返り値はリストです。\n
+    ng ["殿堂","爬虫"]\n
+    ok ["殿堂","爬虫類"]\n
+    """
     if len(tags)==0:
         return []
     if tags[0]==None:
@@ -336,12 +364,18 @@ async def get_fullname_from_latest_tag(tags: list = [] ):
             "fullname": 1 
         }
     ).sort("fullname")
-    result =  [ doc["fullname"] async for doc in cursor if "fullname" in doc]    
+    result =  [ doc["fullname"] async for doc in cursor if "fullname" in doc and doc["fullname"] != None]    
     return result
 
 # タグ検索
-@app.post("/get_fullname_from_latest_tag_perfect_matching")
+@app.post("/get_fullname_from_latest_tag_perfect_matching",tags=["fullname api"])
 async def test_get_fullname_from_latest_tag(tags: list = [] ):  
+    """
+    tagから完全一致検索を行います。tagの要素は完全である必要があります。\n
+    返り値はリストです。\n
+    ng ["殿堂","爬虫類"]\n
+    ok ["殿堂入り","爬虫類"]\n
+    """
     if len(tags)==0:
         return []
     if tags[0]==None:
@@ -356,29 +390,45 @@ async def test_get_fullname_from_latest_tag(tags: list = [] ):
             "date" : 1
         }
     ).sort("fullname")
-    result =  [ doc["fullname"] async for doc in cursor if "fullname" in doc]    
+    result =  [ doc["fullname"] async for doc in cursor if "fullname" in doc and doc["fullname"] != None]    
     return result
 
 # 日時取得
-@app.get("/get_dates_from_fullname")
+@app.get("/get_dates_from_fullname",tags=["fullname api"])
 async def get_dates_from_fullname(fullname: str = "scp-173"):
+    """
+    取得可能なデータ日時を取得します。\n
+    返り値はリストです。
+    """
     return await get_date_from_fullname_db(fullname)
 
 # 最新データ取得
-@app.get("/get_latest_data_from_fullname")
+@app.get("/get_latest_data_from_fullname",tags=["fullname api"])
 async def get_latest_data_from_fullname(fullname: str = "scp-173"):
+    """
+    最新のデータを取得します。\n
+    返り値は辞書です。
+    """
     return  await search_tag_collection.find_one({"fullname": fullname},{"_id":0})
 
 
 
 # データ取得
-@app.get("/get_data_from_fullname_and_date")
+@app.get("/get_data_from_fullname_and_date",tags=["fullname api"])
 async def get_data_from_fullname_and_date(fullname: str = "scp-173",date: str = "2020-xx-xx"):
+    """
+    指定された日付のデータを取得します。\n
+    返り値は辞書です。該当がなければnullです。
+    """
     return await get_data_from_fullname_and_date_db( fullname , date)
 
 
-@app.get("/get_all_fullname")
+@app.get("/get_all_fullname",tags=["fullname api"])
 async def get_all_fullname(_range: int = 10, _page: int = 1):
+    """
+    利用可能なキーをページを指定して取得します。\n
+    返り値はリストです。
+    """
     global all_fullname
     if all_fullname:
         pass
@@ -397,8 +447,14 @@ async def get_all_fullname(_range: int = 10, _page: int = 1):
 # id 
 
 # タグ検索
-@app.post("/get_id_from_latest_tag_fuzzy_search")
+@app.post("/get_id_from_latest_tag_fuzzy_search",tags=["id api"])
 async def get_id_from_latest_tag_fuzzy_search(tags: list = [] ):  
+    """
+    tagからあいまい検索を行います。少なくとも1つは完全なtagが必要です。\n
+    返り値はリストです。\n
+    ng ["殿堂","爬虫"]\n
+    ok ["殿堂","爬虫類"]\n
+    """
     if len(tags)==0:
         return []
     if tags[0]==None:
@@ -416,8 +472,14 @@ async def get_id_from_latest_tag_fuzzy_search(tags: list = [] ):
     return result
 
 # タグ検索
-@app.post("/get_id_from_latest_tag_perfect_matching")
+@app.post("/get_id_from_latest_tag_perfect_matching",tags=["id api"])
 async def get_id_from_latest_tag_perfect_matching(tags: list = [] ):  
+    """
+    tagから完全一致検索を行います。tagの要素は完全である必要があります。\n
+    返り値はリストです。\n
+    ng ["殿堂","爬虫類"]\n
+    ok ["殿堂入り","爬虫類"]\n
+    """
     if len(tags)==0:
         return []
     if tags[0]==None:
@@ -435,25 +497,41 @@ async def get_id_from_latest_tag_perfect_matching(tags: list = [] ):
     return result
 
 # 日時取得
-@app.get("/get_dates_from_id")
+@app.get("/get_dates_from_id",tags=["id api"])
 async def get_dates_from_id(_id: str = "19439882" ):
+    """
+    取得可能なデータ日時を取得します。\n
+    返り値はリストです。
+    """
     return await get_date_from_id_db(_id)
 
 
 # 最新データ取得
-@app.get("/get_latest_data_from_id")
+@app.get("/get_latest_data_from_id",tags=["id api"])
 async def get_latest_data_from_id(_id: str = "19439882"):
+    """
+    最新のデータを取得します。\n
+    返り値は辞書です。該当がなければnullです。
+    """
     return  await search_tag_collection.find_one({"id": _id},{"_id":0})
 
 
 # データ取得
-@app.get("/get_data_from_id_and_date")
+@app.get("/get_data_from_id_and_date",tags=["id api"])
 async def get_data_from_id_and_date(_id: str = "19439882",date: str = "2020-xx-xx"):
+    """
+    指定された日付のデータを取得します。\n
+    返り値は辞書です。該当がなければnullです。
+    """
     return await get_data_from_id_and_date_db(_id,date)
 
 
-@app.get("/get_all_id")
+@app.get("/get_all_id",tags=["id api"])
 async def get_all_id(_range: int = 10, _page: int = 1):
+    """
+    利用可能なキーをページを指定して取得します。\n
+    返り値はリストです。
+    """
     global all_id
     if all_id:
         pass
