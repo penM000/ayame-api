@@ -93,6 +93,17 @@ async def run(cmd,cwd):
         print(f'[stdout]\n{stdout.decode()}')
     if stderr:
         print(f'[stderr]\n{stderr.decode()}')
+
+#ページ切り出し
+def make_page(_list,_range,_page):
+    _min = abs( _range ) * ( abs( _page ) - 1 )
+    _max = abs( _range ) * ( abs( _page ) )
+    if _min<0:
+        _min=0
+    if _max>len(_list):
+        _max=len(_list)
+    return _list[ _min : _max ]
+
 # db関連
 ## dbインデックス作成
 async def make_index():
@@ -177,7 +188,14 @@ async def get_data_from_id_and_date_db(_id,date):
 async def update_data_db(newdocument):
     # 時刻インスタンス生成
     dt_now = datetime.datetime.now(JST)
-    document = await data_collection.find_one({"fullname": newdocument["fullname"], "date": str(dt_now.date())})
+    # 最新データとの比較
+    old_document = await search_tag_collection.find_one({"id": newdocument["id"]},{"_id":0})
+    if old_document is None:
+        pass
+    elif newdocument["fullname"] == old_document["fullname"] and newdocument["data"] == old_document["data"]:
+        return
+
+    document = await data_collection.find_one({"id": newdocument["id"], "date": str(dt_now.date())})
     # 新規登録データ
     if document is None:
         result = await data_collection.insert_one(newdocument)
@@ -191,7 +209,7 @@ async def update_data_db(newdocument):
 
 ## tag検索用コレクション更新
 async def update_tag_text_search_db(newdocument):
-    document = await search_tag_collection.find_one({"fullname": newdocument["fullname"]})
+    document = await search_tag_collection.find_one({"id": newdocument["id"]})
     # 新規登録データ
     if document is None:
         result = await search_tag_collection.insert_one(newdocument)
@@ -317,7 +335,8 @@ async def update(password: str = ""):
             "data"      :   {key: idata[key] for key in idata.keys() if ( key != "fullname" ) and ( key != "tags" ) and ( key != "id" )} 
         }
 
-        
+        ##　更新の順序はdata →　tag
+
         # data db更新
         await update_data_db( copy.copy( newdocument ) )
 
@@ -395,12 +414,13 @@ async def test_get_fullname_from_latest_tag(tags: list = [] ):
 
 # 日時取得
 @app.get("/get_dates_from_fullname",tags=["fullname api"])
-async def get_dates_from_fullname(fullname: str = "scp-173"):
+async def get_dates_from_fullname(fullname: str = "scp-173",_range: int = 7, _page: int = 1):
     """
-    取得可能なデータ日時を取得します。\n
+    取得可能なデータ日時をページ単位で取得します。\n
     返り値はリストです。
     """
-    return await get_date_from_fullname_db(fullname)
+    dates = await get_date_from_fullname_db(fullname)
+    return make_page(dates,_range,_page)
 
 # 最新データ取得
 @app.get("/get_latest_data_from_fullname",tags=["fullname api"])
@@ -422,6 +442,37 @@ async def get_data_from_fullname_and_date(fullname: str = "scp-173",date: str = 
     """
     return await get_data_from_fullname_and_date_db( fullname , date)
 
+# rateデータ取得
+@app.get("/get_rate_from_fullname_during_the_period",tags=["fullname api"])
+async def get_rate_from_fullname_during_the_period(fullname: str = "scp-173",start: str = "2020-xx-xx",stop: str = "2020-xx-xx"):
+    """
+    指定された区間のrateデータを取得します。\n
+    最大参照日数は366日です。\n
+    返り値は辞書です。
+    """
+    max_dates = 367
+    try:
+        startdatetime = datetime.datetime.strptime(start, '%Y-%m-%d')
+        stopdatetime = datetime.datetime.strptime(stop, '%Y-%m-%d')
+    except:
+        return {}
+    startdate = datetime.date(startdatetime.year, startdatetime.month, startdatetime.day)
+    stopdate = datetime.date(stopdatetime.year, stopdatetime.month, stopdatetime.day)
+    date_range = int( ( stopdate - startdate ).days )
+    temp=[]
+    if max_dates < date_range:
+        temp= [ str( stopdate - datetime.timedelta( days = i ) ) for i in range ( max_dates ) ]
+    else:
+        temp= [ str( stopdate - datetime.timedelta( days = i ) ) for i in range ( date_range ) ]
+    if len(temp)==0:
+        return {}
+
+    query = { "$or": [ {"fullname"  :fullname,"date":date} for date in temp ] }
+
+    cursor = data_collection.find(query, {
+                             "_id": 0, "date": 1,"data": 1}).sort("date", -1)
+    result = { doc["date"]: { "rating":doc["data"]["rating"],"rating_votes":doc["data"]["rating_votes"] }  async for doc in cursor }
+    return result
 
 @app.get("/get_all_fullname",tags=["fullname api"])
 async def get_all_fullname(_range: int = 10, _page: int = 1):
@@ -434,15 +485,8 @@ async def get_all_fullname(_range: int = 10, _page: int = 1):
         pass
     else:
         all_fullname = await get_all_fullname_from_db()
-    _min = abs( _range ) * ( abs( _page ) - 1 )
-    _max = abs( _range ) * ( abs( _page ) )
-    if _min<0:
-        _min=0
-    if _max>len(all_fullname):
-        _max=len(all_fullname)
-    result=all_fullname[ _min : _max ]
     
-    return result
+    return make_page(all_fullname,_range,_page)
 
 # id 
 
@@ -498,12 +542,13 @@ async def get_id_from_latest_tag_perfect_matching(tags: list = [] ):
 
 # 日時取得
 @app.get("/get_dates_from_id",tags=["id api"])
-async def get_dates_from_id(_id: str = "19439882" ):
+async def get_dates_from_id(_id: str = "19439882",_range: int = 7, _page: int = 1):
     """
-    取得可能なデータ日時を取得します。\n
+    取得可能なデータ日時をページ単位で取得します。\n
     返り値はリストです。
     """
-    return await get_date_from_id_db(_id)
+    dates = await get_date_from_id_db(_id)
+    return make_page(dates,_range,_page)
 
 
 # 最新データ取得
@@ -525,6 +570,38 @@ async def get_data_from_id_and_date(_id: str = "19439882",date: str = "2020-xx-x
     """
     return await get_data_from_id_and_date_db(_id,date)
 
+# rateデータ取得
+@app.get("/get_rate_from_id_during_the_period",tags=["id api"])
+async def get_rate_from_id_during_the_period(_id: str = "19439882",start: str = "2020-xx-xx",stop: str = "2020-xx-xx"):
+    """
+    指定された区間のrateデータを取得します。\n
+    最大参照日数は366日です。\n
+    返り値は辞書です。
+    """
+    max_dates = 367
+    try:
+        startdatetime = datetime.datetime.strptime(start, '%Y-%m-%d')
+        stopdatetime = datetime.datetime.strptime(stop, '%Y-%m-%d')
+    except:
+        return {}
+    startdate = datetime.date(startdatetime.year, startdatetime.month, startdatetime.day)
+    stopdate = datetime.date(stopdatetime.year, stopdatetime.month, stopdatetime.day)
+    date_range = int( ( stopdate - startdate ).days )
+    temp=[]
+    if max_dates < date_range:
+        temp= [ str( stopdate - datetime.timedelta( days = i ) ) for i in range ( max_dates ) ]
+    else:
+        temp= [ str( stopdate - datetime.timedelta( days = i ) ) for i in range ( date_range ) ]
+    if len(temp)==0:
+        return {}
+    query = { "$or": [ {"id"  :_id,"date":date} for date in temp ] }
+
+    cursor = data_collection.find(query, {
+                             "_id": 0, "date": 1,"data": 1}).sort("date", -1)
+    result = { doc["date"]: { "rating":doc["data"]["rating"],"rating_votes":doc["data"]["rating_votes"] }  async for doc in cursor }
+    return result
+
+
 
 @app.get("/get_all_id",tags=["id api"])
 async def get_all_id(_range: int = 10, _page: int = 1):
@@ -537,14 +614,7 @@ async def get_all_id(_range: int = 10, _page: int = 1):
         pass
     else:
         all_id = await get_all_id_from_db()
-    _min = abs( _range ) * ( abs( _page ) - 1 )
-    _max = abs( _range ) * ( abs( _page ) )
-    if _min<0:
-        _min=0
-    if _max>len(all_id):
-        _max=len(all_id)
-    result=all_id[ _min : _max ]
-    return result
+    return make_page(all_id,_range,_page)
 
 
 @app.get("/", response_class=HTMLResponse)
