@@ -454,7 +454,8 @@ async def get_data_from_fullname_and_date(fullname: str = "scp-173",date: str = 
     返り値は辞書です。該当がなければnullです。
     """
     try:
-        normalization_date = str( datetime.datetime.strptime(date, '%Y-%m-%d') )
+        normalization_date = datetime.datetime.strptime(date, '%Y-%m-%d') 
+        normalization_date = str (datetime.date(normalization_date.year, normalization_date.month, normalization_date.day) )
     except:
         normalization_date = date
     return await get_data_from_fullname_and_date_db( fullname , normalization_date)
@@ -586,9 +587,11 @@ async def get_data_from_id_and_date(_id: str = "19439882",date: str = "2020-xx-x
     返り値は辞書です。該当がなければnullです。
     """
     try:
-        normalization_date = str( datetime.datetime.strptime(date, '%Y-%m-%d') )
+        normalization_date = datetime.datetime.strptime(date, '%Y-%m-%d') 
+        normalization_date = str (datetime.date(normalization_date.year, normalization_date.month, normalization_date.day) )
     except:
         normalization_date = date
+
     return await get_data_from_id_and_date_db(_id,normalization_date)
 
 # rateデータ取得
