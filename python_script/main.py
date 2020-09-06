@@ -104,6 +104,8 @@ def make_page(_list,_range,_page):
         _max=len(_list)
     return _list[ _min : _max ]
 
+
+
 # db関連
 ## dbインデックス作成
 async def make_index():
@@ -185,17 +187,17 @@ async def get_data_from_id_and_date_db(_id,date):
     return document
 
 ## データベース更新
-async def update_data_db(newdocument):
+async def update_data_db(newdocument,mainkey="id"):
     # 時刻インスタンス生成
     dt_now = datetime.datetime.now(JST)
     # 最新データとの比較
-    old_document = await search_tag_collection.find_one({"id": newdocument["id"]},{"_id":0})
+    old_document = await search_tag_collection.find_one({mainkey: newdocument[mainkey]},{"_id":0})
     if old_document is None:
         pass
     elif newdocument["fullname"] == old_document["fullname"] and newdocument["data"] == old_document["data"]:
         return
 
-    document = await data_collection.find_one({"id": newdocument["id"], "date": str(dt_now.date())})
+    document = await data_collection.find_one({mainkey: newdocument[mainkey], "date": str(dt_now.date())})
     # 新規登録データ
     if document is None:
         result = await data_collection.insert_one(newdocument)
@@ -208,8 +210,8 @@ async def update_data_db(newdocument):
     return
 
 ## tag検索用コレクション更新
-async def update_tag_text_search_db(newdocument):
-    document = await search_tag_collection.find_one({"id": newdocument["id"]})
+async def update_tag_text_search_db(newdocument,mainkey="id"):
+    document = await search_tag_collection.find_one({mainkey: newdocument[mainkey]})
     # 新規登録データ
     if document is None:
         result = await search_tag_collection.insert_one(newdocument)
@@ -327,22 +329,33 @@ async def update(password: str = ""):
         update_status = str(now_count) + "/" + str(total) + \
             " : " + str(round((now_count / total) * 100, 2)) + "%"
         # データ構造の自動生成
-        newdocument = {
-            "id"        :   idata["id"], 
-            "fullname"  :   idata["fullname"], 
-            "date"      :   str( dt_now.date() ), 
-            "tags"      :   idata["tags"].split(" ") ,
-            "data"      :   {key: idata[key] for key in idata.keys() if ( key != "fullname" ) and ( key != "tags" ) and ( key != "id" )} 
-        }
+        
+        try:
+            newdocument = {
+                "id"        :   idata["id"], 
+                "fullname"  :   idata["fullname"], 
+                "date"      :   str( dt_now.date() ), 
+                "tags"      :   idata["tags"].split(" ") ,
+                "data"      :   {key: idata[key] for key in idata.keys() if ( key != "fullname" ) and ( key != "tags" ) and ( key != "id" )} 
+            }
+            mainkey="id"
+        except:
+            newdocument = {
+                "fullname"  :   idata["fullname"], 
+                "date"      :   str( dt_now.date() ), 
+                "tags"      :   idata["tags"].split(" ") ,
+                "data"      :   {key: idata[key] for key in idata.keys() if ( key != "fullname" ) and ( key != "tags" ) and ( key != "id" )} 
+            }
+            mainkey="fullname"
 
         ##　更新の順序はdata →　tag
 
         # data db更新
-        await update_data_db( copy.copy( newdocument ) )
+        await update_data_db( copy.copy( newdocument ) ,mainkey)
 
 
         # tag検索用db更新
-        await update_tag_text_search_db( copy.copy( newdocument ) )
+        await update_tag_text_search_db( copy.copy( newdocument ) ,mainkey)
 
     update_status = "NO"
     # データベース最適化
@@ -440,7 +453,11 @@ async def get_data_from_fullname_and_date(fullname: str = "scp-173",date: str = 
     指定された日付のデータを取得します。\n
     返り値は辞書です。該当がなければnullです。
     """
-    return await get_data_from_fullname_and_date_db( fullname , date)
+    try:
+        normalization_date = str( datetime.datetime.strptime(date, '%Y-%m-%d') )
+    except:
+        normalization_date = date
+    return await get_data_from_fullname_and_date_db( fullname , normalization_date)
 
 # rateデータ取得
 @app.get("/get_rate_from_fullname_during_the_period",tags=["fullname api"])
@@ -568,7 +585,11 @@ async def get_data_from_id_and_date(_id: str = "19439882",date: str = "2020-xx-x
     指定された日付のデータを取得します。\n
     返り値は辞書です。該当がなければnullです。
     """
-    return await get_data_from_id_and_date_db(_id,date)
+    try:
+        normalization_date = str( datetime.datetime.strptime(date, '%Y-%m-%d') )
+    except:
+        normalization_date = date
+    return await get_data_from_id_and_date_db(_id,normalization_date)
 
 # rateデータ取得
 @app.get("/get_rate_from_id_during_the_period",tags=["id api"])
