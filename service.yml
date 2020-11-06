@@ -2,18 +2,23 @@ version: '3.1'
 services:
 
   apiserver:
-    image: python:3.8-alpine
+    image: ayame_fastapi
     depends_on:
       - mongodb
     restart: always
     ports:
-      - 6003:8000
+      - 5021:8000
     environment:
       - TZ=Asia/Tokyo
     volumes:
       - ./python_script:/fastapi
       - ./update:/update
     command: /bin/sh -c  "/fastapi/install_module.sh && cd /fastapi && uvicorn main:app --reload --host 0.0.0.0"
+    logging:
+     driver: "json-file"
+     options:
+       max-size: "10m"
+       max-file: "3"
   
   mongodb:
     image: mongo
@@ -31,10 +36,14 @@ services:
 
   mongo-express:
     ports:
-      - 6004:8081
+      - 5022:8081
     environment:
       - 'ME_CONFIG_OPTIONS_EDITORTHEME=ambiance'
       - 'ME_CONFIG_MONGODB_SERVER=mongodb'
       - 'ME_CONFIG_BASICAUTH_USERNAME=user'
       - 'ME_CONFIG_BASICAUTH_PASSWORD=password'
     image: mongo-express
+    
+  memcached:
+    image: memcached:alpine
+    command: ["-m", "64m"]
