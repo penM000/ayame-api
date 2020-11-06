@@ -104,7 +104,27 @@ def make_page(_list,_range,_page):
         _max=len(_list)
     return _list[ _min : _max ]
 
-
+#辞書の比較
+def same_dictionary_check(dict1,dict2,exclusion_key_list=["date"]):
+    """
+    辞書が同じならTrue
+    """
+    #辞書の独立化
+    copy_dict1,copy_dict2=copy.copy(dict1),copy.copy(dict2)
+    for exclusion_key in exclusion_key_list:
+        try:
+            del copy_dict1[exclusion_key]
+        except KeyError:
+            pass
+        
+        try:
+            del copy_dict2[exclusion_key]
+        except KeyError:
+            pass
+    if copy_dict1 == copy_dict2:
+        return True
+    else:
+        return False
 
 # db関連
 ## dbインデックス作成
@@ -191,12 +211,20 @@ async def update_data_db(newdocument,mainkey="id"):
     # 時刻インスタンス生成
     dt_now = datetime.datetime.now(JST)
     # 最新データとの比較
-    old_document = await search_tag_collection.find_one({mainkey: newdocument[mainkey]},{"_id":0})
+    # 日付のリストを取得
+    dates = await get_date_from_id_db(newdocument[mainkey])
+    old_document=None
+    if len(dates) == 0:
+        pass
+    else:
+        old_document = await data_collection.find_one({mainkey: newdocument[mainkey],"date":dates[0]},{"_id":0})
+
+    #old_document = await search_tag_collection.find_one({mainkey: newdocument[mainkey]},{"_id":0})
     if old_document is None:
         pass
-    elif newdocument["fullname"] == old_document["fullname"] and newdocument["data"] == old_document["data"]:
+    elif same_dictionary_check(newdocument,old_document,["_id","date"]):
         return
-
+    
     document = await data_collection.find_one({mainkey: newdocument[mainkey], "date": str(dt_now.date())})
     # 新規登録データ
     if document is None:
@@ -255,8 +283,30 @@ async def compact_db():
     await db.command({"compact": "tag_search"})
 
 
+def change_structure(dict1):
+    try:
+        temp={}
+        dict1_copy=copy.copy(dict1)
+        temp.update(dict1_copy)
+        temp.update(dict1_copy["data"])
+        del temp["data"]
+        return temp
+    except:
+        return False
 
-
+# データベース構造変更用
+"""
+@app.get("/test")
+async def test():
+    cursor = data_collection.find({})
+    async for doc in cursor:
+        temp=change_structure(doc)
+        if False == temp:
+            pass
+        else:
+            result = await data_collection.replace_one({'_id': temp["_id"]}, temp)
+    return 
+"""
 # 状態取得
 @app.get("/status")
 async def get_status():
@@ -290,6 +340,7 @@ async def update(password: str = ""):
         update_status = "progress"
     else:
         return update_status
+    
     
     # クローラ非同期マルチプロセス実行
     try:
@@ -330,32 +381,27 @@ async def update(password: str = ""):
             " : " + str(round((now_count / total) * 100, 2)) + "%"
         # データ構造の自動生成
         
-        try:
-            newdocument = {
-                "id"        :   idata["id"], 
-                "fullname"  :   idata["fullname"], 
-                "date"      :   str( dt_now.date() ), 
-                "tags"      :   idata["tags"].split(" ") ,
-                "data"      :   {key: idata[key] for key in idata.keys() if ( key != "fullname" ) and ( key != "tags" ) and ( key != "id" )} 
-            }
-            mainkey="id"
-        except:
-            newdocument = {
-                "fullname"  :   idata["fullname"], 
-                "date"      :   str( dt_now.date() ), 
-                "tags"      :   idata["tags"].split(" ") ,
-                "data"      :   {key: idata[key] for key in idata.keys() if ( key != "fullname" ) and ( key != "tags" ) and ( key != "id" )} 
-            }
-            mainkey="fullname"
+        newdocument = {key: idata[key] for key in idata.keys() if ( key != "tags"  )}
+        newdocument["tags"] = idata["tags"].split(" ")
+        newdocument["date"] = str( dt_now.date() )
+        """
+        newdocument = {
+            "id"        :   idata["id"], 
+            "fullname"  :   idata["fullname"], 
+            "date"      :   str( dt_now.date() ), 
+            "tags"      :   idata["tags"].split(" ") ,
+            "data"      :   {key: idata[key] for key in idata.keys() if ( key != "fullname" ) and ( key != "tags" ) and ( key != "id" )} 
+        }
+        """
 
-        ##　更新の順序はdata →　tag
+
 
         # data db更新
-        await update_data_db( copy.copy( newdocument ) ,mainkey)
+        await update_data_db( copy.copy( newdocument ) )
 
 
         # tag検索用db更新
-        await update_tag_text_search_db( copy.copy( newdocument ) ,mainkey)
+        await update_tag_text_search_db( copy.copy( newdocument ) )
 
     update_status = "NO"
     # データベース最適化
@@ -488,8 +534,8 @@ async def get_rate_from_fullname_during_the_period(fullname: str = "scp-173",sta
     query = { "$or": [ {"fullname"  :fullname,"date":date} for date in temp ] }
 
     cursor = data_collection.find(query, {
-                             "_id": 0, "date": 1,"data": 1}).sort("date", -1)
-    result = { doc["date"]: { "rating":doc["data"]["rating"],"rating_votes":doc["data"]["rating_votes"] }  async for doc in cursor }
+                             "_id": 0, "date": 1,"rating": 1,"rating_votes": 1}).sort("date", -1)
+    result = { doc["date"]: {key: doc[key] for key in doc.keys() if ( key != "date"  ) }   async for doc in cursor }
     return result
 
 @app.get("/get_all_fullname",tags=["fullname api"])
@@ -621,8 +667,9 @@ async def get_rate_from_id_during_the_period(_id: str = "19439882",start: str = 
     query = { "$or": [ {"id"  :_id,"date":date} for date in temp ] }
 
     cursor = data_collection.find(query, {
-                             "_id": 0, "date": 1,"data": 1}).sort("date", -1)
-    result = { doc["date"]: { "rating":doc["data"]["rating"],"rating_votes":doc["data"]["rating_votes"] }  async for doc in cursor }
+                             "_id": 0, "date": 1,"rating": 1,"rating_votes": 1}).sort("date", -1)
+    result = { doc["date"]: {key: doc[key] for key in doc.keys() if ( key != "date"  ) }   async for doc in cursor }
+    
     return result
 
 
