@@ -12,9 +12,12 @@ from pymongo import IndexModel, ASCENDING, DESCENDING
 from fastapi import FastAPI
 #from fastapi.middleware.gzip import GZipMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+
+
 
 # アップデートパスワード
 update_password = "hello world"
@@ -66,6 +69,13 @@ app = FastAPI(
     version="1.0.0",
     openapi_tags=tags_metadata)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,   # 追記により追加
+    allow_methods=["*"],      # 追記により追加
+    allow_headers=["*"]       # 追記により追加
+)
 # プロキシヘッダー読み取り
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 ##
