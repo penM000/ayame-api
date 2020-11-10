@@ -7,7 +7,7 @@ services:
       - mongodb
     restart: always
     ports:
-      - 5021:8000
+      - 20000:8000
     environment:
       - TZ=Asia/Tokyo
     volumes:
@@ -36,7 +36,7 @@ services:
 
   mongo-express:
     ports:
-      - 5022:8081
+      - 20001:8081
     environment:
       - 'ME_CONFIG_OPTIONS_EDITORTHEME=ambiance'
       - 'ME_CONFIG_MONGODB_SERVER=mongodb'

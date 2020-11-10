@@ -3,19 +3,34 @@ import datetime
 import json
 import random
 import string
-import pprint
 import copy
 
 import aiofiles
 import motor.motor_asyncio
-from pymongo import IndexModel, ASCENDING, DESCENDING
+
+# アップデートパスワード
+update_password = "hello world"
+
+
+def randomname(n):
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
+
+
+try:
+    with open("/fastapi/password.txt") as f:
+        update_password = f.read()
+except BaseException:
+    update_password = str(randomname(10))
+    f = open("/fastapi/password.txt", 'w')
+    f.write(update_password)
+    f.close()
 
 # データベースインスタンス作成
 client = motor.motor_asyncio.AsyncIOMotorClient(
     'mongodb://mongodb:27017/?compressors=snappy')
-db = client['test_database']
-collection = db["test_collection"]
-data_collection = db["test_collection"]
+db = client['ayame_api']
+collection = db["data_collection"]
+data_collection = db["data_collection"]
 search_tag_collection = db["tag_search"]
 update_date_collection = db["last_update_date"]
 
@@ -26,8 +41,7 @@ JST = datetime.timezone(datetime.timedelta(hours=+9), 'JST')
 # システム状態変数
 update_status = "NO"
 last_update = ""
-all_fullname = []
-all_id = []
+all_mainkey = {}
 
 
 # 辞書の比較
@@ -58,6 +72,7 @@ async def make_index():
     await data_collection.create_index("fullname")
     await data_collection.create_index("date")
     await data_collection.create_index([("date", -1)])
+
     await search_tag_collection.create_index("id")
     await search_tag_collection.create_index("fullname")
     await search_tag_collection.create_index([("tags", 1)])
@@ -201,8 +216,7 @@ def make_page(_list, _range, _page):
 async def update():
     # 状態変数
     global update_status
-    global all_fullname
-    global all_id
+    global all_mainkey
     update_status = "NO"
 
     # アップデート処理中なら終了
@@ -268,12 +282,10 @@ async def update():
     await compact_db()
 
     # mainkey一覧更新
-    all_fullname = await get_all_mainkey_from_db("fullname")
-    all_id = await get_all_mainkey_from_db("id")
-
+    all_mainkey["fullname"] = await get_all_mainkey_from_db("fullname")
+    all_mainkey["id"] = await get_all_mainkey_from_db("id")
     # データベース更新日更新
     await update_last_update_date()
-
     return "update complete"
 
 
@@ -288,14 +300,14 @@ async def get_all_mainkey_from_db(mainkey):
     ]
     cursor = data_collection.aggregate(pipeline, allowDiskUse=True)
     result = [doc["_id"] async for doc in cursor]
-    return await result
+    return result
 
 
 async def get_date_from_mainkey_db(mainkey, key):
     cursor = data_collection.find({mainkey: key}, {
         "_id": 0, "date": 1}).sort("date", -1)
     result = [doc["date"] async for doc in cursor]
-    return await result
+    return result
 
 # fullnameと日付で全情報を取得
 
@@ -333,7 +345,7 @@ async def get_mainkey_from_latest_tag_fuzzy_search(mainkey, tags):
         doc[mainkey] async for doc in cursor
         if mainkey in doc and doc[mainkey] is not None
     ]
-    return await result
+    return result
 
 
 async def get_mainkey_from_latest_tag_perfect_matching(mainkey, tags):
@@ -356,7 +368,7 @@ async def get_mainkey_from_latest_tag_perfect_matching(mainkey, tags):
         doc[mainkey] async for doc in cursor
         if mainkey in doc and doc[mainkey] is not None
     ]
-    return await result
+    return result
 
 
 async def get_status():
@@ -427,4 +439,18 @@ async def get_rate_from_mainkey_during_the_period(mainkey, key, start, stop):
         doc["date"]: {key: doc[key] for key in doc.keys()
                       if (key != "date")} async for doc in cursor
     }
-    return await result
+    return result
+
+
+async def get_all_mainkey(mainkey, _range, _page):
+    global all_mainkey
+    if mainkey in all_mainkey:
+        pass
+    else:
+        all_mainkey[mainkey] = await get_all_mainkey_from_db(mainkey)
+    return make_page(all_mainkey[mainkey], _range, _page)
+
+
+async def get_dates_from_mainkey(mainkey, key, _range, _page):
+    dates = await get_date_from_mainkey_db(mainkey, key)
+    return make_page(dates, _range, _page)

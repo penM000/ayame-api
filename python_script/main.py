@@ -1,14 +1,3 @@
-# import asyncio
-# import datetime
-# import json
-import random
-import string
-# import pprint
-# import copy
-
-# import aiofiles
-# import motor.motor_asyncio
-# from pymongo import IndexModel, ASCENDING, DESCENDING
 from fastapi import FastAPI
 # from fastapi.middleware.gzip import GZipMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
@@ -17,24 +6,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 # from pydantic import BaseModel
 import items
-
-
-# アップデートパスワード
-update_password = "hello world"
-
-
-def randomname(n):
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
-
-
-try:
-    with open("/fastapi/password.txt") as f:
-        update_password = f.read()
-except BaseException:
-    update_password = str(randomname(10))
-    f = open("/fastapi/password.txt", 'w')
-    f.write(update_password)
-    f.close()
 
 
 # docsの説明
@@ -67,9 +38,9 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,   
-    allow_methods=["*"],      
-    allow_headers=["*"]       
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
 )
 # プロキシヘッダー読み取り
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
@@ -94,7 +65,7 @@ async def get_fullname_from_latest_tag_fuzzy_search(tags: list = []):
     ng ["殿堂","爬虫"]\n
     ok ["殿堂","爬虫類"]\n
     """
-    return items.get_mainkey_from_latest_tag_fuzzy_search("fullname", tags)
+    return await items.get_mainkey_from_latest_tag_fuzzy_search("fullname", tags)
 
 
 @app.post("/get_id_from_latest_tag_fuzzy_search", tags=["id api"])
@@ -105,7 +76,7 @@ async def get_id_from_latest_tag_fuzzy_search(tags: list = []):
     ng ["殿堂","爬虫"]\n
     ok ["殿堂","爬虫類"]\n
     """
-    return items.get_mainkey_from_latest_tag_fuzzy_search("id", tags)
+    return await items.get_mainkey_from_latest_tag_fuzzy_search("id", tags)
 
 
 @app.post("/get_fullname_from_latest_tag_perfect_matching",
@@ -117,7 +88,7 @@ async def get_fullname_from_latest_tag_perfect_matching(tags: list = []):
     ng ["殿堂","爬虫類"]\n
     ok ["殿堂入り","爬虫類"]\n
     """
-    return items.get_mainkey_from_latest_tag_perfect_matching("fullname", tags)
+    return await items.get_mainkey_from_latest_tag_perfect_matching("fullname", tags)
 
 
 @app.post("/get_id_from_latest_tag_perfect_matching", tags=["id api"])
@@ -128,7 +99,7 @@ async def get_id_from_latest_tag_perfect_matching(tags: list = []):
     ng ["殿堂","爬虫類"]\n
     ok ["殿堂入り","爬虫類"]\n
     """
-    return items.get_mainkey_from_latest_tag_perfect_matching("id", tags)
+    return await items.get_mainkey_from_latest_tag_perfect_matching("id", tags)
 
 
 @app.get("/get_dates_from_fullname", tags=["fullname api"])
@@ -141,8 +112,7 @@ async def get_dates_from_fullname(
     取得可能なデータ日時をページ単位で取得します。\n
     返り値はリストです。
     """
-    dates = items.get_date_from_mainkey_db("fullname", fullname)
-    return items.make_page(dates, _range, _page)
+    return await items.get_dates_from_mainkey("fullname", fullname, _range, _page)
 
 
 @app.get("/get_dates_from_id", tags=["id api"])
@@ -155,10 +125,7 @@ async def get_dates_from_id(
     取得可能なデータ日時をページ単位で取得します。\n
     返り値はリストです。
     """
-    dates = items.get_date_from_mainkey_db("id", _id)
-    return items.make_page(dates, _range, _page)
-
-
+    return await items.get_dates_from_mainkey("id", _id, _range, _page)
 
 
 @app.get("/get_latest_data_from_fullname", tags=["fullname api"])
@@ -173,8 +140,6 @@ async def get_latest_data_from_fullname(fullname: str = "scp-173"):
     )
 
 
-
-
 @app.get("/get_latest_data_from_id", tags=["id api"])
 async def get_latest_data_from_id(_id: str = "19439882"):
     """
@@ -182,7 +147,6 @@ async def get_latest_data_from_id(_id: str = "19439882"):
     返り値は辞書です。該当がなければnullです。
     """
     return await items.search_tag_collection.find_one({"id": _id}, {"_id": 0})
-
 
 
 @app.get("/get_data_from_fullname_and_date", tags=["fullname api"])
@@ -194,9 +158,7 @@ async def get_data_from_fullname_and_date(
     指定された日付のデータを取得します。\n
     返り値は辞書です。該当がなければnullです。
     """
-    return items.get_data_from_mainkey_and_date("fullname", fullname, date)
-
-
+    return await items.get_data_from_mainkey_and_date("fullname", fullname, date)
 
 
 @app.get("/get_data_from_id_and_date", tags=["id api"])
@@ -208,8 +170,7 @@ async def get_data_from_id_and_date(
     指定された日付のデータを取得します。\n
     返り値は辞書です。該当がなければnullです。
     """
-    return items.get_data_from_mainkey_and_date("id", _id, date)
-
+    return await items.get_data_from_mainkey_and_date("id", _id, date)
 
 
 @app.get("/get_rate_from_fullname_during_the_period", tags=["fullname api"])
@@ -223,7 +184,7 @@ async def get_rate_from_fullname_during_the_period(
     最大参照日数は366日です。\n
     返り値は辞書です。
     """
-    return items.get_rate_from_mainkey_during_the_period(
+    return await items.get_rate_from_mainkey_during_the_period(
         "fullname", fullname, start, stop)
 
 
@@ -238,7 +199,7 @@ async def get_rate_from_id_during_the_period(
     最大参照日数は366日です。\n
     返り値は辞書です。
     """
-    return items.get_rate_from_mainkey_during_the_period(
+    return await items.get_rate_from_mainkey_during_the_period(
         "id", _id, start, stop)
 
 
@@ -248,13 +209,7 @@ async def get_all_fullname(_range: int = 10, _page: int = 1):
     利用可能なキーをページを指定して取得します。\n
     返り値はリストです。
     """
-    global all_fullname
-    if all_fullname:
-        pass
-    else:
-        all_fullname = await items.get_all_mainkey_from_db("fullname")
-
-    return items.make_page(all_fullname, _range, _page)
+    return await items.get_all_mainkey("fullname", _range, _page)
 
 
 @app.get("/get_all_id", tags=["id api"])
@@ -263,13 +218,7 @@ async def get_all_id(_range: int = 10, _page: int = 1):
     利用可能なキーをページを指定して取得します。\n
     返り値はリストです。
     """
-    global all_id
-    if all_id:
-        pass
-    else:
-        all_id = await items.get_all_mainkey_from_db("id")
-    return items.make_page(all_id, _range, _page)
-
+    return await items.get_all_mainkey("id", _range, _page)
 
 
 @app.get("/", response_class=HTMLResponse)
