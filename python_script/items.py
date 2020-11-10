@@ -19,10 +19,18 @@ data_collection = db["test_collection"]
 search_tag_collection = db["tag_search"]
 update_date_collection = db["last_update_date"]
 
+
 JST = datetime.timezone(datetime.timedelta(hours=+9), 'JST')
+
+
+# システム状態変数
+update_status = "NO"
+last_update = ""
+all_fullname = []
+all_id = []
+
+
 # 辞書の比較
-
-
 def same_dictionary_check(dict1, dict2, exclusion_key_list=["date"]):
     """
     辞書が同じならTrue
@@ -50,96 +58,10 @@ async def make_index():
     await data_collection.create_index("fullname")
     await data_collection.create_index("date")
     await data_collection.create_index([("date", -1)])
-    # await data_collection.create_index([ ("tags", "text")])
-    # await data_collection.create_index([ ("tags", 1)])
     await search_tag_collection.create_index("id")
     await search_tag_collection.create_index("fullname")
     await search_tag_collection.create_index([("tags", 1)])
     await search_tag_collection.create_index([("tags", "text")])
-
-# fullnameの取得
-
-
-# db関連
-# dbインデックス作成
-
-
-async def get_all_fullname_from_db():
-    pipeline = [
-        {
-            "$group": {"_id": "$fullname"}
-        },
-        {
-            "$sort": {"_id": 1}
-        }
-    ]
-    cursor = data_collection.aggregate(pipeline, allowDiskUse=True)
-    return [doc["_id"] async for doc in cursor]
-
-# fullnameで登録されている日付を取得
-
-
-async def get_date_from_fullname_db(fullname):
-    cursor = data_collection.find({'fullname': fullname}, {
-        "_id": 0, "date": 1}).sort("date", -1)
-    result = [doc["date"] async for doc in cursor]
-    return result
-
-# fullnameと日付で全情報を取得
-
-
-async def get_data_from_key_and_date_db(keytype, key, date):
-    document = await data_collection.find_one(
-        {
-            keytype: key,
-            "date": date
-        },
-        {
-            "_id": 0
-        }
-    )
-    return document
-
-# idの取得
-
-
-async def get_all_id_from_db():
-    pipeline = [
-        {
-            "$group": {"_id": "$id"}
-        },
-        {
-            "$sort": {"_id": 1}
-        }
-    ]
-    cursor = data_collection.aggregate(pipeline, allowDiskUse=True)
-    return [doc["_id"] async for doc in cursor if doc["_id"] is not None]
-
-# idで登録されている日付を取得
-
-
-async def get_date_from_id_db(_id):
-    cursor = data_collection.find({'id': _id}, {
-        "_id": 0, "date": 1}).sort("date", -1)
-    result = [doc["date"] async for doc in cursor]
-    return result
-
-# idと日付で全情報を取得
-
-
-async def get_data_from_id_and_date_db(_id, date):
-    document = await data_collection.find_one(
-        {
-            "id": _id,
-            "date": date
-        },
-        {
-            "_id": 0
-        }
-    )
-    return document
-
-# データベース更新
 
 
 async def update_data_db(newdocument, mainkey="id"):
@@ -147,21 +69,31 @@ async def update_data_db(newdocument, mainkey="id"):
     dt_now = datetime.datetime.now(JST)
     # 最新データとの比較
     # 日付のリストを取得
-    dates = await get_date_from_id_db(newdocument[mainkey])
+    dates = get_date_from_mainkey_db(mainkey, newdocument[mainkey])
     old_document = None
     if len(dates) == 0:
         pass
     else:
-        old_document = await data_collection.find_one({mainkey: newdocument[mainkey], "date": dates[0]}, {"_id": 0})
-
-    # old_document = await search_tag_collection.find_one({mainkey:
-    # newdocument[mainkey]},{"_id":0})
+        old_document = await data_collection.find_one(
+            {
+                mainkey: newdocument[mainkey],
+                "date": dates[0]
+            },
+            {
+                "_id": 0
+            }
+        )
     if old_document is None:
         pass
     elif same_dictionary_check(newdocument, old_document, ["_id", "date"]):
         return
 
-    document = await data_collection.find_one({mainkey: newdocument[mainkey], "date": str(dt_now.date())})
+    document = await data_collection.find_one(
+        {
+            mainkey: newdocument[mainkey],
+            "date": str(dt_now.date())
+        }
+    )
     # 新規登録データ
     if document is None:
         result = await data_collection.insert_one(newdocument)
@@ -171,13 +103,15 @@ async def update_data_db(newdocument, mainkey="id"):
         _id = document['_id']
         # データベース更新
         result = await data_collection.replace_one({'_id': _id}, newdocument)
-    return
+    return result
 
 # tag検索用コレクション更新
 
 
 async def update_tag_text_search_db(newdocument, mainkey="id"):
-    document = await search_tag_collection.find_one({mainkey: newdocument[mainkey]})
+    document = await search_tag_collection.find_one(
+        {mainkey: newdocument[mainkey]}
+    )
     # 新規登録データ
     if document is None:
         result = await search_tag_collection.insert_one(newdocument)
@@ -186,15 +120,20 @@ async def update_tag_text_search_db(newdocument, mainkey="id"):
         # データベースID取得
         _id = document['_id']
         # データベース更新
-        result = await search_tag_collection.replace_one({'_id': _id}, newdocument)
-    return
+        result = await search_tag_collection.replace_one(
+            {'_id': _id},
+            newdocument
+        )
+    return result
 
 # データベース最終更新日更新
 
 
 async def update_last_update_date():
     dt_now = datetime.datetime.now(JST)
-    document = await update_date_collection.find_one({"last_update": "last_update"})
+    document = await update_date_collection.find_one(
+        {"last_update": "last_update"}
+    )
     newdocument = {
         "last_update": "last_update",
         "fulldate": str(dt_now),
@@ -208,14 +147,19 @@ async def update_last_update_date():
         _id = document['_id']
         # データベース更新
 
-        result = await update_date_collection.replace_one({'_id': _id}, newdocument)
+        result = await update_date_collection.replace_one(
+            {'_id': _id}, newdocument
+        )
     return result
 
 # データベース最終更新日取得
 
 
 async def get_last_update_date():
-    result = await update_date_collection.find_one({"last_update": "last_update"}, {"_id": 0, "fulldate": 1, "date": 1})
+    result = await update_date_collection.find_one(
+        {"last_update": "last_update"},
+        {"_id": 0, "fulldate": 1, "date": 1}
+    )
     return result
 
 # データベース最適化
@@ -258,6 +202,7 @@ async def update():
     # 状態変数
     global update_status
     global all_fullname
+    global all_id
     update_status = "NO"
 
     # アップデート処理中なら終了
@@ -277,7 +222,10 @@ async def update():
     # クロールデータのメモリロード
     try:
         json_contents = ""
-        async with aiofiles.open('/update/ayame/data/data.json', mode='r') as f:
+        async with aiofiles.open(
+            '/update/ayame/data/data.json',
+            mode='r'
+        ) as f:
             json_contents = await f.read()
         json_load = json.loads(str(json_contents))
     except BaseException:
@@ -319,9 +267,9 @@ async def update():
     # データベース最適化
     await compact_db()
 
-    # fullname一覧更新
-    all_fullname = await get_all_fullname_from_db()
-    all_id = await get_all_id_from_db()
+    # mainkey一覧更新
+    all_fullname = await get_all_mainkey_from_db("fullname")
+    all_id = await get_all_mainkey_from_db("id")
 
     # データベース更新日更新
     await update_last_update_date()
@@ -329,25 +277,66 @@ async def update():
     return "update complete"
 
 
-async def get_fullname_from_latest_tag_fuzzy_search(tags):
+async def get_all_mainkey_from_db(mainkey):
+    pipeline = [
+        {
+            "$group": {"_id": "$" + mainkey}
+        },
+        {
+            "$sort": {"_id": 1}
+        }
+    ]
+    cursor = data_collection.aggregate(pipeline, allowDiskUse=True)
+    result = [doc["_id"] async for doc in cursor]
+    return await result
+
+
+async def get_date_from_mainkey_db(mainkey, key):
+    cursor = data_collection.find({mainkey: key}, {
+        "_id": 0, "date": 1}).sort("date", -1)
+    result = [doc["date"] async for doc in cursor]
+    return await result
+
+# fullnameと日付で全情報を取得
+
+
+async def get_data_from_mainkey_and_date_db(mainkey, key, date):
+    document = await data_collection.find_one(
+        {
+            mainkey: key,
+            "date": date
+        },
+        {
+            "_id": 0
+        }
+    )
+    return document
+
+
+async def get_mainkey_from_latest_tag_fuzzy_search(mainkey, tags):
     if len(tags) == 0:
         return []
     if tags[0] is None:
         return []
     cursor = search_tag_collection.find(
         {
-            "$text": {"$search": " ".join(["\"" + str(i) + "\"" for i in tags])}
+            "$text": {
+                "$search": " ".join(["\"" + str(i) + "\"" for i in tags])
+            }
         },
         {
             "_id": 0,
-            "fullname": 1
+            mainkey: 1
         }
-    ).sort("fullname")
-    result = [doc["fullname"] async for doc in cursor if "fullname" in doc and doc["fullname"] is not None]
-    return result
+    ).sort(mainkey)
+    result = [
+        doc[mainkey] async for doc in cursor
+        if mainkey in doc and doc[mainkey] is not None
+    ]
+    return await result
 
 
-async def get_fullname_from_latest_tag_perfect_matching(tags):
+async def get_mainkey_from_latest_tag_perfect_matching(mainkey, tags):
 
     if len(tags) == 0:
         return []
@@ -359,11 +348,15 @@ async def get_fullname_from_latest_tag_perfect_matching(tags):
         },
         {
             "_id": 0,
-            "fullname": 1,
+            mainkey: 1,
             "date": 1
         }
-    ).sort("fullname")
-    result = [doc["fullname"] async for doc in cursor if "fullname" in doc and doc["fullname"] is not None]
+    ).sort(mainkey)
+    result = [
+        doc[mainkey] async for doc in cursor
+        if mainkey in doc and doc[mainkey] is not None
+    ]
+    return await result
 
 
 async def get_status():
@@ -371,7 +364,7 @@ async def get_status():
     global all_id
     dt_now = datetime.datetime.now(JST)
     if len(all_fullname) == 0:
-        all_fullname = await get_all_fullname_from_db()
+        all_fullname = await get_all_mainkey_from_db("fullname")
     fulldate = await get_last_update_date()
     status = {
         "update_status": update_status,
@@ -381,7 +374,7 @@ async def get_status():
     return status
 
 
-async def get_data_from_fullname_and_date(fullname, date):
+async def get_data_from_mainkey_and_date(mainkey, key, date):
 
     try:
         normalization_date = datetime.datetime.strptime(date, '%Y-%m-%d')
@@ -392,10 +385,15 @@ async def get_data_from_fullname_and_date(fullname, date):
                 normalization_date.day))
     except BaseException:
         normalization_date = date
-    return await get_data_from_fullname_and_date_db(fullname, normalization_date)
+    result = get_data_from_mainkey_and_date_db(
+        mainkey,
+        key,
+        normalization_date
+    )
+    return await result
 
 
-async def get_rate_from_fullname_during_the_period(keytype, key, start, stop):
+async def get_rate_from_mainkey_during_the_period(mainkey, key, start, stop):
     max_dates = 367
     try:
         startdatetime = datetime.datetime.strptime(start, '%Y-%m-%d')
@@ -421,9 +419,12 @@ async def get_rate_from_fullname_during_the_period(keytype, key, start, stop):
     if len(temp) == 0:
         return {}
 
-    query = {"$or": [{keytype: key, "date": date} for date in temp]}
+    query = {"$or": [{mainkey: key, "date": date} for date in temp]}
 
     cursor = data_collection.find(query, {
         "_id": 0, "date": 1, "rating": 1, "rating_votes": 1}).sort("date", -1)
-    result = {doc["date"]: {key: doc[key] for key in doc.keys() if (key != "date")} async for doc in cursor}
-    return result
+    result = {
+        doc["date"]: {key: doc[key] for key in doc.keys()
+                      if (key != "date")} async for doc in cursor
+    }
+    return await result

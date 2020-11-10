@@ -1,21 +1,21 @@
-import asyncio
-import datetime
-import json
+# import asyncio
+# import datetime
+# import json
 import random
 import string
-import pprint
-import copy
+# import pprint
+# import copy
 
-import aiofiles
-import motor.motor_asyncio
-from pymongo import IndexModel, ASCENDING, DESCENDING
+# import aiofiles
+# import motor.motor_asyncio
+# from pymongo import IndexModel, ASCENDING, DESCENDING
 from fastapi import FastAPI
 # from fastapi.middleware.gzip import GZipMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
+# from pydantic import BaseModel
 import items
 
 
@@ -53,49 +53,37 @@ tags_metadata = [
         "description": "fullnameを用いるapi",
     }
 ]
+
+
 # fastapiインスタンス作成
 app = FastAPI(
     title="ayame api",
-    description="This is a very fancy project, with auto docs for the API and everything",
+    description="This is a very fancy project, with auto\
+        docs for the API and everything",
     version="1.0.0",
     openapi_tags=tags_metadata)
+
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,   # 追記により追加
-    allow_methods=["*"],      # 追記により追加
-    allow_headers=["*"]       # 追記により追加
+    allow_credentials=True,   
+    allow_methods=["*"],      
+    allow_headers=["*"]       
 )
 # プロキシヘッダー読み取り
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
-##
 
-# タイムゾーン設定
-JST = datetime.timezone(datetime.timedelta(hours=+9), 'JST')
-
-# システム状態変数
-update_status = "NO"
-last_update = ""
-all_fullname = []
-all_id = []
 
 # 状態取得
-
-
 @app.get("/status")
 async def get_status():
     return await items.get_status()
-
-# データベース更新
 
 
 @app.get("/update", tags=["update"])
 async def update(password: str = ""):
     return await items.update()
-
-# fullname
-# タグ検索
 
 
 @app.post("/get_fullname_from_latest_tag_fuzzy_search", tags=["fullname api"])
@@ -106,9 +94,18 @@ async def get_fullname_from_latest_tag_fuzzy_search(tags: list = []):
     ng ["殿堂","爬虫"]\n
     ok ["殿堂","爬虫類"]\n
     """
-    return await items.get_fullname_from_latest_tag_fuzzy_search(tags)
+    return items.get_mainkey_from_latest_tag_fuzzy_search("fullname", tags)
 
-# タグ検索
+
+@app.post("/get_id_from_latest_tag_fuzzy_search", tags=["id api"])
+async def get_id_from_latest_tag_fuzzy_search(tags: list = []):
+    """
+    tagからあいまい検索を行います。少なくとも1つは完全なtagが必要です。\n
+    返り値はリストです。\n
+    ng ["殿堂","爬虫"]\n
+    ok ["殿堂","爬虫類"]\n
+    """
+    return items.get_mainkey_from_latest_tag_fuzzy_search("id", tags)
 
 
 @app.post("/get_fullname_from_latest_tag_perfect_matching",
@@ -120,21 +117,48 @@ async def get_fullname_from_latest_tag_perfect_matching(tags: list = []):
     ng ["殿堂","爬虫類"]\n
     ok ["殿堂入り","爬虫類"]\n
     """
-    return await get_fullname_from_latest_tag_perfect_matching(tags)
+    return items.get_mainkey_from_latest_tag_perfect_matching("fullname", tags)
 
-# 日時取得
+
+@app.post("/get_id_from_latest_tag_perfect_matching", tags=["id api"])
+async def get_id_from_latest_tag_perfect_matching(tags: list = []):
+    """
+    tagから完全一致検索を行います。tagの要素は完全である必要があります。\n
+    返り値はリストです。\n
+    ng ["殿堂","爬虫類"]\n
+    ok ["殿堂入り","爬虫類"]\n
+    """
+    return items.get_mainkey_from_latest_tag_perfect_matching("id", tags)
 
 
 @app.get("/get_dates_from_fullname", tags=["fullname api"])
-async def get_dates_from_fullname(fullname: str = "scp-173", _range: int = 7, _page: int = 1):
+async def get_dates_from_fullname(
+    fullname: str = "scp-173",
+    _range: int = 7,
+    _page: int = 1
+):
     """
     取得可能なデータ日時をページ単位で取得します。\n
     返り値はリストです。
     """
-    dates = await items.get_date_from_fullname_db(fullname)
+    dates = items.get_date_from_mainkey_db("fullname", fullname)
     return items.make_page(dates, _range, _page)
 
-# 最新データ取得
+
+@app.get("/get_dates_from_id", tags=["id api"])
+async def get_dates_from_id(
+    _id: str = "19439882",
+    _range: int = 7,
+    _page: int = 1
+):
+    """
+    取得可能なデータ日時をページ単位で取得します。\n
+    返り値はリストです。
+    """
+    dates = items.get_date_from_mainkey_db("id", _id)
+    return items.make_page(dates, _range, _page)
+
+
 
 
 @app.get("/get_latest_data_from_fullname", tags=["fullname api"])
@@ -143,29 +167,79 @@ async def get_latest_data_from_fullname(fullname: str = "scp-173"):
     最新のデータを取得します。\n
     返り値は辞書です。
     """
-    return await items.search_tag_collection.find_one({"fullname": fullname}, {"_id": 0})
+    return await items.search_tag_collection.find_one(
+        {"fullname": fullname},
+        {"_id": 0}
+    )
 
 
-# データ取得
+
+
+@app.get("/get_latest_data_from_id", tags=["id api"])
+async def get_latest_data_from_id(_id: str = "19439882"):
+    """
+    最新のデータを取得します。\n
+    返り値は辞書です。該当がなければnullです。
+    """
+    return await items.search_tag_collection.find_one({"id": _id}, {"_id": 0})
+
+
+
 @app.get("/get_data_from_fullname_and_date", tags=["fullname api"])
-async def get_data_from_fullname_and_date(fullname: str = "scp-173", date: str = "2020-xx-xx"):
+async def get_data_from_fullname_and_date(
+    fullname: str = "scp-173",
+    date: str = "2020-xx-xx"
+):
     """
     指定された日付のデータを取得します。\n
     返り値は辞書です。該当がなければnullです。
     """
-    return items.get_data_from_fullname_and_date(fullname, date)
+    return items.get_data_from_mainkey_and_date("fullname", fullname, date)
 
-# rateデータ取得
+
+
+
+@app.get("/get_data_from_id_and_date", tags=["id api"])
+async def get_data_from_id_and_date(
+    _id: str = "19439882",
+    date: str = "2020-xx-xx"
+):
+    """
+    指定された日付のデータを取得します。\n
+    返り値は辞書です。該当がなければnullです。
+    """
+    return items.get_data_from_mainkey_and_date("id", _id, date)
+
 
 
 @app.get("/get_rate_from_fullname_during_the_period", tags=["fullname api"])
-async def get_rate_from_fullname_during_the_period(fullname: str = "scp-173", start: str = "2020-xx-xx", stop: str = "2020-xx-xx"):
+async def get_rate_from_fullname_during_the_period(
+    fullname: str = "scp-173",
+    start: str = "2020-xx-xx",
+    stop: str = "2020-xx-xx"
+):
     """
     指定された区間のrateデータを取得します。\n
     最大参照日数は366日です。\n
     返り値は辞書です。
     """
-   return await items.get_rate_from_fullname_during_the_period("fullname", fullname, start, stop)
+    return items.get_rate_from_mainkey_during_the_period(
+        "fullname", fullname, start, stop)
+
+
+@app.get("/get_rate_from_id_during_the_period", tags=["id api"])
+async def get_rate_from_id_during_the_period(
+    _id: str = "19439882",
+    start: str = "2020-xx-xx",
+    stop: str = "2020-xx-xx"
+):
+    """
+    指定された区間のrateデータを取得します。\n
+    最大参照日数は366日です。\n
+    返り値は辞書です。
+    """
+    return items.get_rate_from_mainkey_during_the_period(
+        "id", _id, start, stop)
 
 
 @app.get("/get_all_fullname", tags=["fullname api"])
@@ -178,149 +252,9 @@ async def get_all_fullname(_range: int = 10, _page: int = 1):
     if all_fullname:
         pass
     else:
-        all_fullname = await get_all_fullname_from_db()
+        all_fullname = await items.get_all_mainkey_from_db("fullname")
 
-    return make_page(all_fullname, _range, _page)
-
-# id
-
-# タグ検索
-
-
-@app.post("/get_id_from_latest_tag_fuzzy_search", tags=["id api"])
-async def get_id_from_latest_tag_fuzzy_search(tags: list = []):
-    """
-    tagからあいまい検索を行います。少なくとも1つは完全なtagが必要です。\n
-    返り値はリストです。\n
-    ng ["殿堂","爬虫"]\n
-    ok ["殿堂","爬虫類"]\n
-    """
-    if len(tags) == 0:
-        return []
-    if tags[0] is None:
-        return []
-    cursor = search_tag_collection.find(
-        {
-            "$text": {"$search": " ".join(["\"" + str(i) + "\"" for i in tags])}
-        },
-        {
-            "_id": 0,
-            "id": 1
-        }
-    ).sort("id")
-    result = [doc["id"] async for doc in cursor if "id" in doc]
-    return result
-
-# タグ検索
-
-
-@app.post("/get_id_from_latest_tag_perfect_matching", tags=["id api"])
-async def get_id_from_latest_tag_perfect_matching(tags: list = []):
-    """
-    tagから完全一致検索を行います。tagの要素は完全である必要があります。\n
-    返り値はリストです。\n
-    ng ["殿堂","爬虫類"]\n
-    ok ["殿堂入り","爬虫類"]\n
-    """
-    if len(tags) == 0:
-        return []
-    if tags[0] is None:
-        return []
-    cursor = search_tag_collection.find(
-        {
-            "tags": {"$all": tags}
-        },
-        {
-            "_id": 0,
-            "id": 1,
-        }
-    ).sort("id")
-    result = [doc["id"] async for doc in cursor if "id" in doc]
-    return result
-
-# 日時取得
-
-
-@app.get("/get_dates_from_id", tags=["id api"])
-async def get_dates_from_id(_id: str = "19439882", _range: int = 7, _page: int = 1):
-    """
-    取得可能なデータ日時をページ単位で取得します。\n
-    返り値はリストです。
-    """
-    dates = await get_date_from_id_db(_id)
-    return make_page(dates, _range, _page)
-
-
-# 最新データ取得
-@app.get("/get_latest_data_from_id", tags=["id api"])
-async def get_latest_data_from_id(_id: str = "19439882"):
-    """
-    最新のデータを取得します。\n
-    返り値は辞書です。該当がなければnullです。
-    """
-    return await search_tag_collection.find_one({"id": _id}, {"_id": 0})
-
-
-# データ取得
-@app.get("/get_data_from_id_and_date", tags=["id api"])
-async def get_data_from_id_and_date(_id: str = "19439882", date: str = "2020-xx-xx"):
-    """
-    指定された日付のデータを取得します。\n
-    返り値は辞書です。該当がなければnullです。
-    """
-    try:
-        normalization_date = datetime.datetime.strptime(date, '%Y-%m-%d')
-        normalization_date = str(
-            datetime.date(
-                normalization_date.year,
-                normalization_date.month,
-                normalization_date.day))
-    except BaseException:
-        normalization_date = date
-
-    return await get_data_from_id_and_date_db(_id, normalization_date)
-
-# rateデータ取得
-
-
-@app.get("/get_rate_from_id_during_the_period", tags=["id api"])
-async def get_rate_from_id_during_the_period(_id: str = "19439882", start: str = "2020-xx-xx", stop: str = "2020-xx-xx"):
-    """
-    指定された区間のrateデータを取得します。\n
-    最大参照日数は366日です。\n
-    返り値は辞書です。
-    """
-    max_dates = 367
-    try:
-        startdatetime = datetime.datetime.strptime(start, '%Y-%m-%d')
-        stopdatetime = datetime.datetime.strptime(stop, '%Y-%m-%d')
-    except BaseException:
-        return {}
-    startdate = datetime.date(
-        startdatetime.year,
-        startdatetime.month,
-        startdatetime.day)
-    stopdate = datetime.date(
-        stopdatetime.year,
-        stopdatetime.month,
-        stopdatetime.day)
-    date_range = int((stopdate - startdate).days)
-    temp = []
-    if max_dates < date_range:
-        temp = [str(stopdate - datetime.timedelta(days=i))
-                for i in range(max_dates)]
-    else:
-        temp = [str(stopdate - datetime.timedelta(days=i))
-                for i in range(date_range)]
-    if len(temp) == 0:
-        return {}
-    query = {"$or": [{"id": _id, "date": date} for date in temp]}
-
-    cursor = data_collection.find(query, {
-        "_id": 0, "date": 1, "rating": 1, "rating_votes": 1}).sort("date", -1)
-    result = {doc["date"]: {key: doc[key] for key in doc.keys() if (key != "date")} async for doc in cursor}
-
-    return result
+    return items.make_page(all_fullname, _range, _page)
 
 
 @app.get("/get_all_id", tags=["id api"])
@@ -333,8 +267,9 @@ async def get_all_id(_range: int = 10, _page: int = 1):
     if all_id:
         pass
     else:
-        all_id = await get_all_id_from_db()
-    return make_page(all_id, _range, _page)
+        all_id = await items.get_all_mainkey_from_db("id")
+    return items.make_page(all_id, _range, _page)
+
 
 
 @app.get("/", response_class=HTMLResponse)
