@@ -1,3 +1,4 @@
+import time
 from fastapi import FastAPI
 # from fastapi.middleware.gzip import GZipMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
@@ -22,6 +23,10 @@ tags_metadata = [
     {
         "name": "fullname api",
         "description": "fullnameを用いるapi",
+    },
+    {
+        "name": "metatitle api",
+        "description": "metatitle 検索用 api",
     }
 ]
 
@@ -51,10 +56,30 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 async def get_status():
     return await items.get_status()
 
+# 状態取得
+
 
 @app.get("/update", tags=["update"])
 async def update(password: str = ""):
     return await items.update()
+
+
+@app.get("/get_metatitle_search", tags=["metatitle api"])
+async def get_metatitle_search(metatitle: str):
+    """
+
+    """
+    result = await items.get_metatitle_search(metatitle)
+    return result
+
+
+@app.get("/get_id_from_metatitle", tags=["metatitle api"])
+async def get_id_from_metatitle(metatitle: str):
+    """
+
+    """
+    result = await items.get_id_from_metatitle(metatitle)
+    return result
 
 
 @app.post("/get_fullname_from_latest_tag_fuzzy_search", tags=["fullname api"])
