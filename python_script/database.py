@@ -63,21 +63,12 @@ def convert_str_in_a_document_to_datetime(document):
     return doc
 
 
-async def test():
-    collection = search_tag_collection
-    cursor = collection.find({})
-    async for doc in cursor:
-        newdocument = convert_str_in_a_document_to_datetime(doc)
-        await collection.replace_one(
-            {'_id': doc["_id"]},
-            newdocument
-        )
-    pass
-
-
 async def get_id_during_time_from_created_at(start, stop):
-    start = datetime.datetime.strptime(start, '%Y-%m-%d')
-    stop = datetime.datetime.strptime(stop, '%Y-%m-%d')
+    try:
+        start = datetime.datetime.strptime(start, '%Y-%m-%d')
+        stop = datetime.datetime.strptime(stop, '%Y-%m-%d')
+    except BaseException:
+        return
 
     cursor = search_tag_collection.find(
         {"created_at": {'$lt': stop, '$gte': start}})

@@ -146,9 +146,6 @@ async def update():
     return "update complete"
 
 
-async def test():
-    await database.test()
-
 # fullnameと日付で全情報を取得
 
 
@@ -282,7 +279,6 @@ async def get_all_mainkey(mainkey, _range, _page):
         pass
     else:
         all_mainkey[mainkey] = await database.get_all_mainkey_from_db(mainkey)
-        print(all_mainkey[mainkey][0])
     return make_page(all_mainkey[mainkey], _range, _page)
 
 
@@ -301,8 +297,8 @@ async def get_id_during_time_from_created_at(start, stop):
     return result
 
 
-async def get_latest_data_from_fullname(fullname):
+async def get_latest_data_from_mainkey(mainkey,key):
     return await database.search_tag_collection.find_one(
-        {"fullname": fullname},
+        {mainkey: key},
         {"_id": 0}
     )
