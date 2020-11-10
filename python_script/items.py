@@ -78,7 +78,7 @@ async def update():
     # クローラ非同期マルチプロセス実行
     try:
         update_status = "get data"
-        # await run("python3 /update/ayame/src/get_all.py", "/update/ayame")
+        await run("python3 /update/ayame/src/get_all.py", "/update/ayame")
     except BaseException:
         update_status = "NO"
         return "being24 error"
