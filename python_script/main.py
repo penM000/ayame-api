@@ -1,4 +1,3 @@
-import time
 from fastapi import FastAPI
 # from fastapi.middleware.gzip import GZipMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
@@ -27,6 +26,10 @@ tags_metadata = [
     {
         "name": "metatitle api",
         "description": "metatitle 検索用 api",
+    },
+    {
+        "name": "akanesasu api",
+        "description": "茜刺財団新聞集計用api",
     }
 ]
 
@@ -90,7 +93,8 @@ async def get_fullname_from_latest_tag_fuzzy_search(tags: list = []):
     ng ["殿堂","爬虫"]\n
     ok ["殿堂","爬虫類"]\n
     """
-    return await items.get_mainkey_from_latest_tag_fuzzy_search("fullname", tags)
+    return await items.get_mainkey_from_latest_tag_fuzzy_search("fullname",
+                                                                tags)
 
 
 @app.post("/get_id_from_latest_tag_fuzzy_search", tags=["id api"])
@@ -113,7 +117,8 @@ async def get_fullname_from_latest_tag_perfect_matching(tags: list = []):
     ng ["殿堂","爬虫類"]\n
     ok ["殿堂入り","爬虫類"]\n
     """
-    return await items.get_mainkey_from_latest_tag_perfect_matching("fullname", tags)
+    return await items.get_mainkey_from_latest_tag_perfect_matching("fullname",
+                                                                    tags)
 
 
 @app.post("/get_id_from_latest_tag_perfect_matching", tags=["id api"])
@@ -137,7 +142,8 @@ async def get_dates_from_fullname(
     取得可能なデータ日時をページ単位で取得します。\n
     返り値はリストです。
     """
-    return await items.get_dates_from_mainkey("fullname", fullname, _range, _page)
+    return await items.get_dates_from_mainkey(
+        "fullname", fullname, _range, _page)
 
 
 @app.get("/get_dates_from_id", tags=["id api"])
@@ -159,10 +165,7 @@ async def get_latest_data_from_fullname(fullname: str = "scp-173"):
     最新のデータを取得します。\n
     返り値は辞書です。
     """
-    return await items.search_tag_collection.find_one(
-        {"fullname": fullname},
-        {"_id": 0}
-    )
+    return await items.get_latest_data_from_fullname(fullname)
 
 
 @app.get("/get_latest_data_from_id", tags=["id api"])
@@ -183,7 +186,8 @@ async def get_data_from_fullname_and_date(
     指定された日付のデータを取得します。\n
     返り値は辞書です。該当がなければnullです。
     """
-    return await items.get_data_from_mainkey_and_date("fullname", fullname, date)
+    return await items.get_data_from_mainkey_and_date(
+        "fullname", fullname, date)
 
 
 @app.get("/get_data_from_id_and_date", tags=["id api"])
@@ -244,6 +248,21 @@ async def get_all_id(_range: int = 10, _page: int = 1):
     返り値はリストです。
     """
     return await items.get_all_mainkey("id", _range, _page)
+
+
+@app.get("/test")
+async def test():
+    return await items.test()
+
+
+@app.get("/get_id_during_time_from_created_at", tags=["akanesasu api"])
+async def get_id_during_time_from_created_at(
+        start: str = "2020-xx-xx",
+        stop: str = "2020-xx-xx"):
+    """
+    指定された期間内に作成された記事のidを返します。
+    """
+    return await items.get_id_during_time_from_created_at(start, stop)
 
 
 @app.get("/", response_class=HTMLResponse)

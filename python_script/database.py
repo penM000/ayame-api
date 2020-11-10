@@ -1,7 +1,7 @@
 import motor.motor_asyncio
 import datetime
 import copy
-import time
+import dateutil.parser
 # データベースインスタンス作成
 database_name = "ayame_api"
 data_collection_name = "data_collection"
@@ -27,6 +27,7 @@ async def make_index():
 
     await search_tag_collection.create_index("id")
     await search_tag_collection.create_index("fullname")
+    await search_tag_collection.create_index("created_at")
     await search_tag_collection.create_index([("tags", 1)])
     await search_tag_collection.create_index([("tags", "text")],
                                              default_language="none"
@@ -44,7 +45,44 @@ async def compact_db():
     await db.command({"compact": search_metatitle_collection_name})
     await db.command({"compact": update_date_collection_name})
 
-# 辞書の比較
+
+def convert_str_in_a_document_to_datetime(document):
+    doc = copy.copy(document)
+    try:
+        doc["created_at"] = dateutil.parser.parse(str(doc["created_at"]))
+    except BaseException:
+        pass
+    try:
+        doc["updated_at"] = dateutil.parser.parse(str(doc["updated_at"]))
+    except BaseException:
+        pass
+    try:
+        doc["commented_at"] = dateutil.parser.parse(str(doc["commented_at"]))
+    except BaseException:
+        pass
+    return doc
+
+
+async def test():
+    collection = search_tag_collection
+    cursor = collection.find({})
+    async for doc in cursor:
+        newdocument = convert_str_in_a_document_to_datetime(doc)
+        await collection.replace_one(
+            {'_id': doc["_id"]},
+            newdocument
+        )
+    pass
+
+
+async def get_id_during_time_from_created_at(start, stop):
+    start = datetime.datetime.strptime(start, '%Y-%m-%d')
+    stop = datetime.datetime.strptime(stop, '%Y-%m-%d')
+
+    cursor = search_tag_collection.find(
+        {"created_at": {'$lt': stop, '$gte': start}})
+    result = [doc["id"] async for doc in cursor if doc["id"] is not None]
+    return result
 
 
 def same_dictionary_check(dict1, dict2, exclusion_key_list=["date"]):

@@ -121,6 +121,8 @@ async def update():
                        for key in idata.keys() if (key != "tags")}
         newdocument["tags"] = idata["tags"].split(" ")
         newdocument["date"] = str(dt_now.date())
+        newdocument = database.convert_str_in_a_document_to_datetime(
+            newdocument)
 
         # data db更新
         await database.update_data_db(copy.copy(newdocument))
@@ -144,6 +146,9 @@ async def update():
     return "update complete"
 
 
+async def test():
+    await database.test()
+
 # fullnameと日付で全情報を取得
 
 
@@ -160,7 +165,7 @@ async def get_mainkey_from_latest_tag_fuzzy_search(mainkey, tags):
     cursor = database.search_tag_collection.find(
         {
             "$text": {
-                "$search": " ".join(["\"" + str(i) + "\"" for i in text])
+                "$search": " ".join(["\"" + str(i) + "\"" for i in tags])
             }
         },
         {
@@ -289,3 +294,15 @@ async def get_dates_from_mainkey(mainkey, key, _range, _page):
 async def get_id_from_metatitle(metatitle):
     result = await database.get_id_from_metatitle(metatitle)
     return result
+
+
+async def get_id_during_time_from_created_at(start, stop):
+    result = await database.get_id_during_time_from_created_at(start, stop)
+    return result
+
+
+async def get_latest_data_from_fullname(fullname):
+    return await database.search_tag_collection.find_one(
+        {"fullname": fullname},
+        {"_id": 0}
+    )
