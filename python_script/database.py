@@ -257,9 +257,9 @@ async def metatitle_search(metatitle):
         },
         {
             "_id": 0,
-            "metatitle": 1
+            "metatitle": 1,
         }
-    ).sort("metatitle")
+    ).sort("rating", -1)
     result = [
         doc["metatitle"] async for doc in cursor
         if "metatitle" in doc and doc["metatitle"] is not None
