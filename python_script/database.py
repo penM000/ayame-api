@@ -18,6 +18,16 @@ search_tag_collection = db[search_tag_collection_name]
 update_date_collection = db[update_date_collection_name]
 
 
+async def database_update_structure():
+    update_collection = data_collection
+    cursor = update_collection.find({})
+    async for document in cursor:
+        newdocument = convert_str_to_int(document)
+        _id = document['_id']
+        await update_collection.replace_one(
+            {'_id': _id}, newdocument)
+
+
 async def make_index():
     await data_collection.create_index("id")
     await data_collection.create_index("fullname")
@@ -49,6 +59,31 @@ def convert_str_in_a_document_to_datetime(document):
         pass
     try:
         doc["commented_at"] = dateutil.parser.parse(str(doc["commented_at"]))
+    except BaseException:
+        pass
+    return doc
+
+
+def convert_str_to_int(document):
+    doc = copy.copy(document)
+    try:
+        doc["size"] = int(doc["size"])
+    except BaseException:
+        pass
+    try:
+        doc["rating"] = int(doc["rating"])
+    except BaseException:
+        pass
+    try:
+        doc["rating_votes"] = int(doc["rating_votes"])
+    except BaseException:
+        pass
+    try:
+        doc["comments"] = int(doc["comments"])
+    except BaseException:
+        pass
+    try:
+        doc["revisions"] = int(doc["revisions"])
     except BaseException:
         pass
     return doc

@@ -9,6 +9,10 @@ import aiofiles
 
 import database
 
+
+async def test():
+    await database.database_update_structure()
+
 # アップデートパスワード
 update_password = "hello world"
 
@@ -123,13 +127,13 @@ async def update():
         newdocument["date"] = str(dt_now.date())
         newdocument = database.convert_str_in_a_document_to_datetime(
             newdocument)
+        newdocument = database.convert_str_to_int(newdocument)
 
         # data db更新
         await database.update_data_db(copy.copy(newdocument))
 
         # tag検索用db更新
         await database.update_tag_text_search_db(copy.copy(newdocument))
-
 
     update_status = "NO"
     # データベース最適化

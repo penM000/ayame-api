@@ -57,6 +57,7 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 # 状態取得
 @app.get("/status")
 async def get_status():
+    # await items.test()
     return await items.get_status()
 
 # 状態取得
