@@ -68,11 +68,15 @@ async def update(password: str = ""):
 
 
 @app.get("/get_metatitle_search", tags=["metatitle api"])
-async def get_metatitle_search(metatitle: str):
+async def get_metatitle_search(metatitle: str, limit: int = 0):
     """
 
     """
     result = await items.get_metatitle_search(metatitle)
+    if limit == 0:
+        return result
+    if len(result) > limit:
+        return result[:limit]
     return result
 
 
