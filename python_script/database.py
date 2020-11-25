@@ -6,7 +6,6 @@ import dateutil.parser
 database_name = "ayame_api"
 data_collection_name = "data_collection"
 search_tag_collection_name = "tag_search"
-search_metatitle_collection_name = "metatitle_search"
 update_date_collection_name = "last_update_date"
 
 client = motor.motor_asyncio.AsyncIOMotorClient(
@@ -15,7 +14,7 @@ db = client[database_name]
 collection = db[data_collection_name]
 data_collection = db[data_collection_name]
 search_tag_collection = db[search_tag_collection_name]
-search_metatitle_collection = db[search_metatitle_collection_name]
+
 update_date_collection = db[update_date_collection_name]
 
 
@@ -29,20 +28,12 @@ async def make_index():
     await search_tag_collection.create_index("fullname")
     await search_tag_collection.create_index("created_at")
     await search_tag_collection.create_index([("tags", 1)])
-    await search_tag_collection.create_index([("tags", "text")],
-                                             default_language="none"
-                                             )
-
-    await search_metatitle_collection.create_index([("metatitle", 1)])
-    await search_metatitle_collection.create_index([("metatitle", "text")],
-                                                   default_language="none"
-                                                   )
+    await search_tag_collection.create_index([("metatitle", 1)])
 
 
 async def compact_db():
     await db.command({"compact": data_collection_name})
     await db.command({"compact": search_tag_collection_name})
-    await db.command({"compact": search_metatitle_collection_name})
     await db.command({"compact": update_date_collection_name})
 
 
@@ -172,24 +163,6 @@ async def update_tag_text_search_db(newdocument, mainkey="id"):
     return result
 
 
-async def update_metatitle_text_search_db(newdocument, mainkey="id"):
-    document = await search_metatitle_collection.find_one(
-        {mainkey: newdocument[mainkey]}
-    )
-    # 新規登録データ
-    if document is None:
-        result = await search_metatitle_collection.insert_one(newdocument)
-    # 更新データ(同じ日付の更新)
-    else:
-        # データベースID取得
-        _id = document['_id']
-        # データベース更新
-        result = await search_metatitle_collection.replace_one(
-            {'_id': _id},
-            newdocument
-        )
-    return result
-
 # データベース最終更新日更新
 
 
@@ -243,12 +216,9 @@ async def get_all_mainkey_from_db(mainkey):
 
 
 async def metatitle_search(metatitle):
-    cursor = search_metatitle_collection.find(
+    cursor = search_tag_collection.find(
         {
-            "$text": {
-                "$search": "\"" + metatitle + "\"",
-                "$language": "none"
-            }
+            "metatitle": {"$regex": metatitle},
         },
         {
             "_id": 0,
@@ -276,7 +246,7 @@ async def get_data_from_mainkey_and_date_db(mainkey, key, date):
 
 
 async def get_id_from_metatitle(metatitle):
-    document = await search_metatitle_collection.find_one(
+    document = await search_tag_collection.find_one(
         {
             "metatitle": metatitle,
         },

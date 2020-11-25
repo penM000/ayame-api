@@ -130,7 +130,6 @@ async def update():
         # tag検索用db更新
         await database.update_tag_text_search_db(copy.copy(newdocument))
 
-        await database.update_metatitle_text_search_db(copy.copy(newdocument))
 
     update_status = "NO"
     # データベース最適化
@@ -161,9 +160,7 @@ async def get_mainkey_from_latest_tag_fuzzy_search(mainkey, tags):
         return []
     cursor = database.search_tag_collection.find(
         {
-            "$text": {
-                "$search": " ".join(["\"" + str(i) + "\"" for i in tags])
-            }
+            "$and": [{"tags": {"$regex": key}} for key in tags],
         },
         {
             "_id": 0,
@@ -297,7 +294,7 @@ async def get_id_during_time_from_created_at(start, stop):
     return result
 
 
-async def get_latest_data_from_mainkey(mainkey,key):
+async def get_latest_data_from_mainkey(mainkey, key):
     return await database.search_tag_collection.find_one(
         {mainkey: key},
         {"_id": 0}

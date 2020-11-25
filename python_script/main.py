@@ -165,7 +165,7 @@ async def get_latest_data_from_fullname(fullname: str = "scp-173"):
     最新のデータを取得します。\n
     返り値は辞書です。
     """
-    return await items.get_latest_data_from_mainkey("fullname",fullname)
+    return await items.get_latest_data_from_mainkey("fullname", fullname)
 
 
 @app.get("/get_latest_data_from_id", tags=["id api"])
@@ -174,7 +174,7 @@ async def get_latest_data_from_id(_id: str = "19439882"):
     最新のデータを取得します。\n
     返り値は辞書です。該当がなければnullです。
     """
-    return await items.get_latest_data_from_mainkey("id",_id)
+    return await items.get_latest_data_from_mainkey("id", _id)
 
 
 @app.get("/get_data_from_fullname_and_date", tags=["fullname api"])
@@ -248,7 +248,6 @@ async def get_all_id(_range: int = 10, _page: int = 1):
     返り値はリストです。
     """
     return await items.get_all_mainkey("id", _range, _page)
-
 
 
 @app.get("/get_id_during_time_from_created_at", tags=["akanesasu api"])
