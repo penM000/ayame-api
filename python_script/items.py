@@ -53,6 +53,7 @@ async def run(cmd, cwd):
         print(f'[stdout]\n{stdout.decode()}')
     if stderr:
         print(f'[stderr]\n{stderr.decode()}')
+    return proc.returncode
 
 # ページ切り出し
 
@@ -80,10 +81,10 @@ async def update():
         return update_status
 
     # クローラ非同期マルチプロセス実行
-    try:
-        update_status = "get data"
-        await run("python3 /update/ayame/src/get_all.py", "/update/ayame")
-    except BaseException:
+
+    update_status = "get data"
+    return_code = await run("python3 /update/ayame/src/get_all.py", "/update/ayame")
+    if int(return_code) != 0:
         update_status = "NO"
         return "being24 error"
 
@@ -128,7 +129,10 @@ async def update():
         newdocument = database.convert_str_in_a_document_to_datetime(
             newdocument)
         newdocument = database.convert_str_to_int(newdocument)
-
+        try:
+            newdocument["id"]
+        except BaseException:
+            print(newdocument)
         # data db更新
         await database.update_data_db(copy.copy(newdocument))
 
