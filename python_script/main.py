@@ -24,8 +24,8 @@ tags_metadata = [
         "description": "fullnameを用いるapi",
     },
     {
-        "name": "metatitle api",
-        "description": "metatitle 検索用 api",
+        "name": "search api",
+        "description": "検索用 api",
     },
     {
         "name": "akanesasu api",
@@ -68,10 +68,10 @@ async def update(password: str = ""):
     return await items.update()
 
 
-@app.get("/get_metatitle_search", tags=["metatitle api"])
-async def get_metatitle_search(metatitle: str, limit: int = 0):
+@app.get("/get_metatitle_search", tags=["search api"])
+async def get_metatitle_search(metatitle: str, limit: int = 10):
     """
-
+    limit　0で全件取得
     """
     result = await items.get_metatitle_search(metatitle)
     if limit == 0:
@@ -81,12 +81,34 @@ async def get_metatitle_search(metatitle: str, limit: int = 0):
     return result
 
 
-@app.get("/get_id_from_metatitle", tags=["metatitle api"])
+@app.get("/get_fullname_search", tags=["search api"])
+async def get_fullname_search(fullname: str, limit: int = 10):
+    """
+    limit　0で全件取得
+    """
+    result = await items.get_fullname_search(fullname)
+    if limit == 0:
+        return result
+    if len(result) > limit:
+        return result[:limit]
+    return result
+
+
+@app.get("/get_id_from_metatitle", tags=["search api"])
 async def get_id_from_metatitle(metatitle: str):
     """
 
     """
     result = await items.get_id_from_metatitle(metatitle)
+    return result
+
+
+@app.get("/get_id_from_fullname", tags=["search api"])
+async def get_id_from_fullname(fullname: str):
+    """
+
+    """
+    result = await items.get_id_from_fullname(fullname)
     return result
 
 

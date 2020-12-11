@@ -157,7 +157,12 @@ async def update():
 
 
 async def get_metatitle_search(metatitle):
-    result = await database.metatitle_search(metatitle)
+    result = await database.mainkey_search("metatitle", metatitle)
+    return result
+
+
+async def get_fullname_search(metatitle):
+    result = await database.mainkey_search("fullname", metatitle)
     return result
 
 
@@ -293,7 +298,12 @@ async def get_dates_from_mainkey(mainkey, key, _range, _page):
 
 
 async def get_id_from_metatitle(metatitle):
-    result = await database.get_id_from_metatitle(metatitle)
+    result = await database.get_id("metatitle", metatitle)
+    return result
+
+
+async def get_id_from_fullname(fullname):
+    result = await database.get_id("fullname", fullname)
     return result
 
 

@@ -250,19 +250,19 @@ async def get_all_mainkey_from_db(mainkey):
     return result
 
 
-async def metatitle_search(metatitle):
+async def mainkey_search(mainkey, key, sorting_by="rating"):
     cursor = search_tag_collection.find(
         {
-            "metatitle": {"$regex": metatitle},
+            mainkey: {"$regex": key},
         },
         {
             "_id": 0,
-            "metatitle": 1,
+            mainkey: 1,
         }
-    ).sort("rating", -1)
+    ).sort(sorting_by, -1)
     result = [
-        doc["metatitle"] async for doc in cursor
-        if "metatitle" in doc and doc["metatitle"] is not None
+        doc[mainkey] async for doc in cursor
+        if mainkey in doc and doc[mainkey] is not None
     ]
     return result
 
@@ -284,6 +284,19 @@ async def get_id_from_metatitle(metatitle):
     document = await search_tag_collection.find_one(
         {
             "metatitle": metatitle,
+        },
+        {
+            "_id": 0,
+            "id": 1
+        }
+    )
+    return document
+
+
+async def get_id(mainkey, key):
+    document = await search_tag_collection.find_one(
+        {
+            mainkey: key,
         },
         {
             "_id": 0,
