@@ -8,6 +8,7 @@ import copy
 import aiofiles
 
 import database
+import re
 
 
 async def test():
@@ -173,7 +174,7 @@ async def get_mainkey_from_latest_tag_fuzzy_search(mainkey, tags):
         return []
     cursor = database.search_tag_collection.find(
         {
-            "$and": [{"tags": {"$regex": key}} for key in tags],
+            "$and": [{"tags": {"$regex": re.escape(key)}} for key in tags],
         },
         {
             "_id": 0,

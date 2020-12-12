@@ -2,6 +2,7 @@ import motor.motor_asyncio
 import datetime
 import copy
 import dateutil.parser
+import re
 # データベースインスタンス作成
 database_name = "ayame_api"
 data_collection_name = "data_collection"
@@ -253,7 +254,7 @@ async def get_all_mainkey_from_db(mainkey):
 async def mainkey_search(mainkey, key, sorting_by="rating"):
     cursor = search_tag_collection.find(
         {
-            mainkey: {"$regex": key},
+            mainkey: {"$regex": re.escape(key)},
         },
         {
             "_id": 0,
