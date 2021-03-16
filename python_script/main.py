@@ -125,14 +125,17 @@ async def get_fullname_from_latest_tag_fuzzy_search(tags: list = []):
 
 
 @app.post("/get_id_from_latest_tag_fuzzy_search", tags=["id api"])
-async def get_id_from_latest_tag_fuzzy_search(tags: list = []):
+async def get_id_from_latest_tag_fuzzy_search(
+    tags: list = [], 
+    date: str = "2020-xx-xx"
+):
     """
     tagからあいまい検索を行います。少なくとも1つは完全なtagが必要です。\n
     返り値はリストです。\n
     ng ["殿堂","爬虫"]\n
     ok ["殿堂","爬虫類"]\n
     """
-    return await items.get_mainkey_from_latest_tag_fuzzy_search("id", tags)
+    return await items.get_mainkey_from_latest_tag_fuzzy_search("id", tags ,date)
 
 
 @app.post("/get_fullname_from_latest_tag_perfect_matching",

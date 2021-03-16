@@ -69,6 +69,19 @@ def make_page(_list, _range, _page):
     return _list[_min: _max]
 
 
+def str_to_date(date):
+    try:
+        normalization_date = datetime.datetime.strptime(date, '%Y-%m-%d')
+        normalization_date = str(
+            datetime.date(
+                normalization_date.year,
+                normalization_date.month,
+                normalization_date.day))
+    except BaseException:
+        normalization_date = date
+    return normalization_date
+
+
 async def update():
     # 状態変数
     global update_status
@@ -229,20 +242,10 @@ async def get_status():
 
 
 async def get_data_from_mainkey_and_date(mainkey, key, date):
-
-    try:
-        normalization_date = datetime.datetime.strptime(date, '%Y-%m-%d')
-        normalization_date = str(
-            datetime.date(
-                normalization_date.year,
-                normalization_date.month,
-                normalization_date.day))
-    except BaseException:
-        normalization_date = date
     result = database.get_data_from_mainkey_and_date_db(
         mainkey,
         key,
-        normalization_date
+        str_to_date(date)
     )
     return await result
 
