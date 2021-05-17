@@ -97,7 +97,7 @@ async def update():
     # クローラ非同期マルチプロセス実行
 
     update_status = "get data"
-    return_code = await run("python3 /update/ayame/src/get_all.py", "/update/ayame")
+    return_code = await run("python3 /update/ayame/src/create_json.py", "/update/ayame")
     if int(return_code) != 0:
         update_status = "NO"
         return "being24 error"
