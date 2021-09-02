@@ -34,7 +34,7 @@ async def make_index():
     await data_collection.create_index("fullname")
     await data_collection.create_index("date")
     await data_collection.create_index([("date", -1)])
-    await data_collection.create_index([("tags", 1)])
+    # await data_collection.create_index([("tags", 1)])
 
     await search_tag_collection.create_index("id")
     await search_tag_collection.create_index("fullname")
