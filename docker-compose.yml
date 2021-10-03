@@ -1,8 +1,10 @@
-version: '3.1'
+version: '3.8'
 services:
 
   apiserver:
-    image: ayame_fastapi
+    build:
+      context: ./docker
+      dockerfile: Dockerfile
     depends_on:
       - mongodb
     restart: always
@@ -11,14 +13,13 @@ services:
     environment:
       - TZ=Asia/Tokyo
     volumes:
-      - ./python_script:/fastapi
-      - ./update:/update
-    command: /bin/sh -c  "/fastapi/install_module.sh && cd /fastapi && uvicorn main:app --reload --host 0.0.0.0"
+      - ./:/ayame
+    command: /bin/sh -c  "cd /ayame && uvicorn app.main:app --reload --host 0.0.0.0 --proxy-headers --reload-dir ./app"
     logging:
      driver: "json-file"
      options:
-       max-size: "10m"
-       max-file: "3"
+       max-size: "1m"
+       max-file: "1"
   
   mongodb:
     image: mongo
@@ -44,6 +45,3 @@ services:
       - 'ME_CONFIG_BASICAUTH_PASSWORD=password'
     image: mongo-express
     
-  memcached:
-    image: memcached:alpine
-    command: ["-m", "64m"]
