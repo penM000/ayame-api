@@ -37,6 +37,8 @@ class database_class:
         await self.collection_search.create_index("created_at")
         await self.collection_search.create_index("tags")
         await self.collection_search.create_index("metatitle")
+        await self.collection_search.create_index("rating")
+        await self.collection_search.create_index("author")
 
     async def database_compact(self):
         """

@@ -12,7 +12,7 @@ router = APIRouter(
 @router.get("/pageid")
 async def pageid_match(title: Optional[str] = Query("SCP-173 - 彫刻 - オリジナル")):
     """
-    fullnameもしくはmetatitleをpageidに変換します。
+    fullnameもしくはmetatitle(完全一致)をpageidに変換します。
     """
     _filter = {"_id": 0, "id": 1, "metatitle": 1, "fullname": 1}
     result = await ayame_query.title_perfect_match(title, _filter)
