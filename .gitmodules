@@ -1,0 +1,3 @@
+[submodule "ayame"]
+	path = ayame
+	url = https://github.com/being24/ayame
