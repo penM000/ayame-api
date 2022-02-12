@@ -94,8 +94,8 @@ class mongodb_query_class(database_class):
     def perfect_match(self, field, value):
         return {field: value}
 
-
-
+    def all_document(self):
+        return {}
 
 
 mongodb_query = mongodb_query_class()
@@ -107,5 +107,5 @@ if __name__ == "__main__":
 
     test = mongodb_query.and_query(query1, query2)
     print(test)
-    #result = loop.run_until_complete(test)
+    # result = loop.run_until_complete(test)
     # print(result)
