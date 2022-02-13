@@ -44,8 +44,8 @@ class database_class:
         """
         databaseのデフラグ
         """
-        await self.database.command({"compact": self.collection_data_name})
-        await self.database.command({"compact": self.collection_search_name})
+        await self.database.command({"compact": self.c_data_name})
+        await self.database.command({"compact": self.c_search_name})
 
 
 class mongodb_query_class(database_class):
