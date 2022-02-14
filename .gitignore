@@ -131,4 +131,5 @@ dmypy.json
 mongodb/*
 update/being24/*
 python_script/password.txt
+json/*
 !.gitkeep
