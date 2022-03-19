@@ -66,14 +66,14 @@ class ayame_update_class():
         if self.updating:
             return False
         self.updating = True
-        result = await ayame_update.sync_json_data()
+        result = await self.sync_json_data()
         if result:
             pass
         else:
             logger.error("更新エラー")
             return False
         await mongodb_query.create_index()
-        new_documents = await ayame_update.load_json_data()
+        new_documents = await self.load_json_data()
         for document in new_documents:
             # 入力されるドキュメントのデータ型を整形
             new_document = self.convert_docment_type(document)
@@ -109,7 +109,6 @@ class ayame_update_class():
             await mongodb_query.collection_data.insert_one(new_document)
         elif self.same_dictionary_check(document, new_document):
             # 前回の取得データと変わらないときは何もしない
-            print("スキップ")
             pass
         else:
             # データが更新されている場合は追加
@@ -187,6 +186,7 @@ class ayame_update_class():
                 elif key in int_keys and not isinstance(doc[key], int):
                     doc[key] = int(doc[key])
                 elif key in list_keys and not isinstance(doc[key], list):
+                    
                     doc[key] = doc[key].split(" ")
 
         return doc
