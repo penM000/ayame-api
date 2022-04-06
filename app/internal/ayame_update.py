@@ -71,6 +71,7 @@ class ayame_update_class():
             pass
         else:
             logger.error("更新エラー")
+            self.updating = False
             return False
         await mongodb_query.create_index()
         new_documents = await self.load_json_data()
@@ -175,18 +176,21 @@ class ayame_update_class():
             "comments",
             "revisions",
             "created_by_id",
-            "updated_by_id", "commented_by_id", "id"]
+            "updated_by_id", "commented_by_id", "id", "article_id"]
         list_keys = ["tags"]
         for key in doc:
+            if key == "article_id":
+                doc["id"] == doc["article_id"]
+
             if "" == doc[key]:
-                pass
+                if key in list_keys:
+                    doc[key] = list()
             else:
                 if key in date_keys:
                     doc[key] = dateutil.parser.parse(str(doc[key]))
                 elif key in int_keys and not isinstance(doc[key], int):
                     doc[key] = int(doc[key])
                 elif key in list_keys and not isinstance(doc[key], list):
-                    
                     doc[key] = doc[key].split(" ")
 
         return doc
