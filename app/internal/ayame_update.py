@@ -178,10 +178,9 @@ class ayame_update_class():
             "created_by_id",
             "updated_by_id", "commented_by_id", "id", "article_id"]
         list_keys = ["tags"]
+        if "article_id" in doc.keys():
+            doc["id"] = doc["article_id"]
         for key in doc:
-            if key == "article_id":
-                doc["id"] == doc["article_id"]
-
             if "" == doc[key]:
                 if key in list_keys:
                     doc[key] = list()
