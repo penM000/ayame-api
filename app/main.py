@@ -5,12 +5,17 @@ from .routers import search
 from .routers import data
 from .routers import change
 from .routers import system
+from .routers import json_download
 
-app = FastAPI()
+from .routers import tags_metadata
+
+
+app = FastAPI(openapi_tags=tags_metadata.tags_metadata)
 app.include_router(search.router)
 app.include_router(data.router)
 app.include_router(change.router)
 app.include_router(system.router)
+app.include_router(json_download.router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
