@@ -5,6 +5,8 @@ import dateutil.parser
 import json
 import aiofiles
 import asyncio
+import random
+import string
 from .logger import logger
 from .command import command_run
 
@@ -41,6 +43,26 @@ class ayame_update_class():
         JST = datetime.timezone(datetime.timedelta(hours=+9), 'JST')
         dt_now = datetime.datetime.now(JST)
         return str(dt_now.date())
+
+    def randomname(self, n):
+        return ''.join(
+            random.choices(
+                string.ascii_letters +
+                string.digits,
+                k=n))
+
+    def get_update_password(self):
+        password_file = "password.txt"
+        password = None
+        try:
+            with open(password_file) as f:
+                password = f.read()
+        except BaseException:
+            password = str(self.randomname(10))
+            f = open(password_file, 'w')
+            f.write(password)
+            f.close()
+        return password
 
     async def load_json_data(self, filepath="ayame/data/data.json"):
         async with aiofiles.open(
