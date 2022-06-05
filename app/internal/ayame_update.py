@@ -244,8 +244,8 @@ ayame_update = ayame_update_class()
 
 
 if __name__ == "__main__":
-    import json
-    json
+    # import json
+
     doc = {
 
     }
