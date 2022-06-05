@@ -85,8 +85,8 @@ class ayame_update_class():
             return False
 
     async def update_database(self):
-        if self.updating:
-            return False
+        # if self.updating:
+        #    return False
         self.updating = True
         result = await self.sync_json_data()
         if result:
