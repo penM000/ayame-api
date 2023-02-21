@@ -2,9 +2,10 @@ version: '3.8'
 services:
 
   apiserver:
-    build:
-      context: ./docker
-      dockerfile: Dockerfile
+    # build:
+    #   context: ./docker
+    #   dockerfile: Dockerfile
+    image: ayame_fastapi
     depends_on:
       - mongodb
     restart: always
@@ -22,7 +23,7 @@ services:
        max-file: "1"
   
   mongodb:
-    image: mongo
+    image: mongo:6
     restart: always
     environment:
       -  'MONGODB_USER=user' 
